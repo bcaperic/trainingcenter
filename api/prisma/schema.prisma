@@ -1,0 +1,434 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────── ENUMS ────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum MembershipRole {
+  ADMIN
+  INSTRUCTOR
+  TRAINEE
+}
+
+enum MembershipStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum WeekStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum SessionType {
+  LIVE
+  MAKEUP
+  DRILL
+  EVAL
+  WAR_ROOM
+}
+
+enum SessionStatus {
+  DRAFT
+  PUBLISHED
+  ONGOING
+  ENDED
+  CANCELED
+}
+
+enum CheckinMode {
+  CODE
+  BUTTON
+}
+
+enum EnrollmentStatus {
+  APPLIED
+  WAITLISTED
+  CANCELED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+}
+
+enum AttendanceMethod {
+  CODE
+  BUTTON
+  MANUAL
+}
+
+enum MissionType {
+  REPORT
+  CODE
+  TEST
+  DRILL_RESULT
+}
+
+enum MissionStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  REVIEWED
+  PASS
+  FAIL
+  RETURNED
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NotificationType {
+  SESSION_REMINDER
+  MISSION_DUE
+  REPORT_READY
+  RECORDING_READY
+  ANNOUNCEMENT
+}
+
+enum GateStatus {
+  PASS
+  FAIL
+  NA
+}
+
+enum MailType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+// ──────────────────────────── MODELS ────────────────────────────
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  passwordHash    String
+  name            String
+  status          UserStatus @default(ACTIVE)
+  emailVerified   Boolean    @default(false)
+  verifyToken     String?
+  verifyExpiresAt DateTime?
+  resetToken      String?
+  resetExpiresAt  DateTime?
+  refreshToken    String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  memberships   ProgramMembership[]
+  enrollments   Enrollment[]
+  attendances   Attendance[]
+  submissions   Submission[]
+  notifications Notification[]
+  weeklyReports WeeklyReport[]
+  leadTeams     Team[]              @relation("TeamLead")
+
+  @@map("users")
+}
+
+model Program {
+  id          String        @id @default(uuid())
+  name        String
+  shortName   String        @default("")
+  description String        @default("")
+  duration    String        @default("")
+  startDate   DateTime?
+  endDate     DateTime?
+  status      ProgramStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  memberships   ProgramMembership[]
+  teams         Team[]
+  weeks         Week[]
+  sessions      Session[]
+  missions      Mission[]
+  enrollments   Enrollment[]
+  attendances   Attendance[]
+  submissions   Submission[]
+  announcements Announcement[]
+  notifications Notification[]
+  weeklyReports WeeklyReport[]
+  attachments   ProgramAttachment[]
+
+  @@map("programs")
+}
+
+model ProgramAttachment {
+  id         String   @id @default(uuid())
+  programId  String
+  filename   String
+  mimeType   String
+  size       Int
+  key        String
+  uploadedAt DateTime @default(now())
+  uploadedBy String
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@map("program_attachments")
+}
+
+model ProgramMembership {
+  id        String           @id @default(uuid())
+  programId String
+  userId    String
+  role      MembershipRole   @default(TRAINEE)
+  teamId    String?
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team    Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([programId, userId])
+  @@map("program_memberships")
+}
+
+model Team {
+  id         String   @id @default(uuid())
+  programId  String
+  name       String
+  leadUserId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  program     Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
+  lead        User?               @relation("TeamLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  memberships ProgramMembership[]
+
+  @@unique([programId, name])
+  @@map("teams")
+}
+
+model Week {
+  id        String     @id @default(uuid())
+  programId String
+  weekNo    Int
+  title     String
+  goal      String?
+  startDate DateTime
+  endDate   DateTime
+  status    WeekStatus @default(DRAFT)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  program       Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+  missions      Mission[]
+  weeklyReports WeeklyReport[]
+
+  @@unique([programId, weekNo])
+  @@map("weeks")
+}
+
+model Session {
+  id              String        @id @default(uuid())
+  programId       String
+  weekId          String?
+  type            SessionType   @default(LIVE)
+  title           String
+  description     String        @default("")
+  startAt         DateTime
+  endAt           DateTime
+  capacity        Int?
+  locationOrUrl   String?
+  recordingUrl    String?
+  status          SessionStatus @default(DRAFT)
+  checkinMode     CheckinMode   @default(CODE)
+  checkinCodeHash String?
+  checkinOpenAt   DateTime?
+  checkinCloseAt  DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  program     Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  week        Week?        @relation(fields: [weekId], references: [id], onDelete: SetNull)
+  enrollments Enrollment[]
+  attendances Attendance[]
+
+  @@map("sessions")
+}
+
+model Enrollment {
+  id        String           @id @default(uuid())
+  programId String
+  sessionId String
+  userId    String
+  status    EnrollmentStatus @default(APPLIED)
+  appliedAt DateTime         @default(now())
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("enrollments")
+}
+
+model Attendance {
+  id          String           @id @default(uuid())
+  programId   String
+  sessionId   String
+  userId      String
+  status      AttendanceStatus @default(ABSENT)
+  checkedInAt DateTime?
+  method      AttendanceMethod?
+  createdAt   DateTime         @default(now())
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("attendances")
+}
+
+model Mission {
+  id          String        @id @default(uuid())
+  programId   String
+  weekId      String
+  type        MissionType   @default(REPORT)
+  title       String
+  description String        @default("")
+  dueAt       DateTime?
+  status      MissionStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  program     Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  week        Week         @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("missions")
+}
+
+model Submission {
+  id          String           @id @default(uuid())
+  programId   String
+  missionId   String
+  userId      String
+  contentText String?
+  contentUrl  String?
+  submittedAt DateTime         @default(now())
+  status      SubmissionStatus @default(SUBMITTED)
+  score       Int?
+  feedback    String?
+  reviewedAt  DateTime?
+
+  program     Program                @relation(fields: [programId], references: [id], onDelete: Cascade)
+  mission     Mission                @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments SubmissionAttachment[]
+
+  @@unique([missionId, userId])
+  @@map("submissions")
+}
+
+model SubmissionAttachment {
+  id           String   @id @default(uuid())
+  submissionId String
+  filename     String
+  mimeType     String
+  size         Int
+  key          String
+  uploadedAt   DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@map("submission_attachments")
+}
+
+model Announcement {
+  id          String             @id @default(uuid())
+  programId   String
+  title       String
+  body        String
+  isPinned    Boolean            @default(false)
+  status      AnnouncementStatus @default(DRAFT)
+  authorId    String?
+  publishedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@map("announcements")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  programId String
+  userId    String
+  type      NotificationType
+  title     String
+  body      String           @default("")
+  linkPath  String           @default("")
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model WeeklyReport {
+  id             String      @id @default(uuid())
+  programId      String
+  weekId         String
+  userId         String
+  attendanceRate Float       @default(0)
+  completionRate Float       @default(0)
+  points         Int         @default(0)
+  gateStatus     GateStatus? @default(NA)
+  generatedAt    DateTime    @default(now())
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  week    Week    @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([weekId, userId])
+  @@map("weekly_reports")
+}
+
+model MailLog {
+  id        String   @id @default(uuid())
+  to        String
+  type      MailType
+  subject   String
+  body      String
+  token     String?
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  @@map("mail_logs")
+}
