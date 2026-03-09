@@ -4,6 +4,7 @@ import {
   Calendar,
   Target,
   ClipboardCheck,
+  ClipboardList,
   BarChart3,
   LogOut,
   GraduationCap,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { capitalize } from "../lib/format";
 import { useProgram } from "../context/ProgramContext";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -30,8 +32,9 @@ import {
 const operationNavItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Overview", end: true },
   { to: "/admin/schedule", icon: Calendar, label: "Schedule" },
-  { to: "/admin/missions", icon: Target, label: "Tests" },
+  { to: "/admin/tests", icon: Target, label: "Tests" },
   { to: "/admin/attendance", icon: ClipboardCheck, label: "Attendance" },
+  { to: "/admin/submissions", icon: ClipboardList, label: "Reviews" },
   { to: "/admin/reports", icon: BarChart3, label: "Reports" },
 ];
 
@@ -184,7 +187,7 @@ export function AdminLayout() {
                       variant="secondary"
                       className={`text-[10px] px-1 py-0 ${statusColor[p.status] || ""}`}
                     >
-                      {p.status}
+                      {capitalize(p.status)}
                     </Badge>
                   </div>
                 </SelectItem>

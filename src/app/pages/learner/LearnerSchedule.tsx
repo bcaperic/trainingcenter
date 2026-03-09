@@ -10,12 +10,12 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "../../components/ui/sheet";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+  FloatingModalFooter,
+} from "../../components/FloatingModal";
 import { EmptyState } from "../../components/EmptyState";
 import { useProgram } from "../../context/ProgramContext";
 import { useApi, apiPost, apiDelete } from "../../hooks/use-api";
@@ -28,6 +28,18 @@ import type {
 import { format } from "date-fns";
 import { Clock, Video, ExternalLink, Folder, CalendarX, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import { capitalize } from "../../lib/format";
+
+function formatSessionType(type: Session["type"]): string {
+  const map: Record<string, string> = {
+    LIVE: "Online",
+    MAKEUP: "Makeup",
+    DRILL: "Drill",
+    EVAL: "Eval",
+    WAR_ROOM: "War Room",
+  };
+  return map[type] || capitalize(type);
+}
 
 export function LearnerSchedule() {
   const { currentProgram } = useProgram();
@@ -94,6 +106,12 @@ export function LearnerSchedule() {
         return { bg: "bg-blue-50", text: "text-blue-600", badge: "bg-blue-50 text-blue-700" };
       case "MAKEUP":
         return { bg: "bg-green-50", text: "text-green-600", badge: "bg-green-50 text-green-700" };
+      case "DRILL":
+        return { bg: "bg-emerald-50", text: "text-emerald-600", badge: "bg-emerald-50 text-emerald-700" };
+      case "EVAL":
+        return { bg: "bg-purple-50", text: "text-purple-600", badge: "bg-purple-50 text-purple-700" };
+      case "WAR_ROOM":
+        return { bg: "bg-gray-100", text: "text-gray-500", badge: "bg-gray-100 text-gray-600" };
       default:
         return { bg: "bg-gray-100", text: "text-gray-500", badge: "bg-gray-100 text-gray-600" };
     }
@@ -115,6 +133,21 @@ export function LearnerSchedule() {
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Action failed");
     }
+  };
+
+  const statusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      PUBLISHED: "bg-blue-50 text-blue-700",
+      ONGOING: "bg-green-50 text-green-700",
+      ENDED: "bg-gray-100 text-gray-600",
+      CANCELED: "bg-red-50 text-red-700",
+      DRAFT: "bg-yellow-50 text-yellow-700",
+    };
+    return (
+      <Badge variant="secondary" className={`text-[10px] ${styles[status] || ""}`}>
+        {capitalize(status)}
+      </Badge>
+    );
   };
 
   return (
@@ -174,7 +207,7 @@ export function LearnerSchedule() {
                       variant="secondary"
                       className={`text-[10px] ${style.badge}`}
                     >
-                      {s.type}
+                      {formatSessionType(s.type as Session["type"])}
                     </Badge>
                     {enrolledSessionIds.has(s.id) && (
                       <Badge className="text-[10px] bg-primary/10 text-primary border-0">
@@ -189,85 +222,108 @@ export function LearnerSchedule() {
         </div>
       )}
 
-      {/* Session Detail */}
-      <Sheet
+      {/* Session Detail Modal */}
+      <FloatingModal
         open={!!selectedSession}
-        onOpenChange={() => setSelectedSession(null)}
+        onOpenChange={(open) => !open && setSelectedSession(null)}
       >
-        <SheetContent className="sm:max-w-md">
-          {selectedSession && (
-            <>
-              <SheetHeader>
-                <SheetTitle className="text-sm">
-                  {selectedSession.title}
-                </SheetTitle>
-                <SheetDescription className="text-xs">
-                  {selectedSession.description}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="px-4 space-y-4 flex-1 overflow-auto">
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">Date</span>
-                    <p style={{ fontWeight: 500 }}>
-                      {format(new Date(selectedSession.startAt), "yyyy-MM-dd")}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Time</span>
-                    <p style={{ fontWeight: 500 }}>
-                      {format(new Date(selectedSession.startAt), "HH:mm")}–
-                      {format(new Date(selectedSession.endAt), "HH:mm")}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Type</span>
-                    <p style={{ fontWeight: 500 }}>{selectedSession.type}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Capacity</span>
-                    <p style={{ fontWeight: 500 }}>
-                      {selectedSession.enrolledCount ?? 0}/{selectedSession.capacity ?? "—"}
-                    </p>
-                  </div>
-                </div>
-                {selectedSession.description && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Description</p>
-                    <p className="text-xs">{selectedSession.description}</p>
-                  </div>
-                )}
-                {selectedSession.recordingUrl && (
-                  <a
-                    href={selectedSession.recordingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="size-3" />
-                    View Recording
-                  </a>
-                )}
-              </div>
-              <div className="p-4 border-t mt-auto">
-                <Button
-                  className="w-full h-8 text-sm"
-                  variant={
-                    enrolledSessionIds.has(selectedSession.id)
-                      ? "outline"
-                      : "default"
-                  }
-                  onClick={() => handleEnroll(selectedSession.id)}
+        {selectedSession && (
+          <>
+            <FloatingModalHeader>
+              <FloatingModalTitle className="text-sm">
+                {selectedSession.title}
+              </FloatingModalTitle>
+              <FloatingModalDescription className="text-xs">
+                {selectedSession.description || "No description"}
+              </FloatingModalDescription>
+            </FloatingModalHeader>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="secondary"
+                  className={`text-[11px] ${sessionTypeStyle(selectedSession.type).badge}`}
                 >
-                  {enrolledSessionIds.has(selectedSession.id)
-                    ? "Cancel Enrollment"
-                    : "Enroll Now"}
-                </Button>
+                  {formatSessionType(selectedSession.type as Session["type"])}
+                </Badge>
+                {statusBadge(selectedSession.status)}
+                {enrolledSessionIds.has(selectedSession.id) && (
+                  <Badge className="text-[10px] bg-primary/10 text-primary border-0">
+                    Enrolled
+                  </Badge>
+                )}
               </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Date</span>
+                  <p style={{ fontWeight: 500 }}>
+                    {format(new Date(selectedSession.startAt), "yyyy-MM-dd")}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Time</span>
+                  <p style={{ fontWeight: 500 }}>
+                    {format(new Date(selectedSession.startAt), "HH:mm")}–
+                    {format(new Date(selectedSession.endAt), "HH:mm")}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Capacity</span>
+                  <p style={{ fontWeight: 500 }}>
+                    {selectedSession.capacity
+                      ? `${selectedSession.enrolledCount ?? 0}/${selectedSession.capacity}`
+                      : "\u2014"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Location</span>
+                  <p style={{ fontWeight: 500 }}>
+                    {selectedSession.locationOrUrl || "\u2014"}
+                  </p>
+                </div>
+              </div>
+              {selectedSession.description && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Description</p>
+                  <p className="text-xs leading-relaxed">{selectedSession.description}</p>
+                </div>
+              )}
+              {selectedSession.recordingUrl && (
+                <a
+                  href={selectedSession.recordingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  <Video className="size-3" />
+                  View Recording
+                </a>
+              )}
+            </div>
+            <FloatingModalFooter>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedSession(null)}
+                className="text-xs"
+              >
+                Close
+              </Button>
+              <Button
+                size="sm"
+                variant={
+                  enrolledSessionIds.has(selectedSession.id) ? "outline" : "default"
+                }
+                onClick={() => handleEnroll(selectedSession.id)}
+                className="text-xs"
+              >
+                {enrolledSessionIds.has(selectedSession.id)
+                  ? "Cancel Enrollment"
+                  : "Enroll Now"}
+              </Button>
+            </FloatingModalFooter>
+          </>
+        )}
+      </FloatingModal>
     </div>
   );
 }

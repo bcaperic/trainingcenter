@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Progress } from "../components/ui/progress";
 import {
   Select,
@@ -9,6 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -21,8 +28,10 @@ import { EmptyState } from "../components/EmptyState";
 import { useProgram } from "../context/ProgramContext";
 import { useApi } from "../hooks/use-api";
 import type { Week, Team, WeeklyReportResponse } from "../types/api";
-import { Download, Folder, CalendarX, Users, BarChart3 } from "lucide-react";
+import { Download, Folder, CalendarX, Users, Search, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 15;
 
 const rateBadge = (rate: number) => {
   if (rate >= 80) return "bg-green-50 text-green-700";
@@ -34,6 +43,8 @@ export function Reports() {
   const { currentProgram } = useProgram();
   const [selectedWeek, setSelectedWeek] = useState("all");
   const [selectedTeam, setSelectedTeam] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   const { data: weeks } = useApi<Week[]>(
     currentProgram ? `/programs/${currentProgram.id}/weeks` : null,
@@ -59,8 +70,25 @@ export function Reports() {
 
   const weeksList = weeks ?? [];
   const teamsList = teams ?? [];
-  const rows = report?.data ?? [];
+  const allRows = report?.data ?? [];
   const summary = report?.summary;
+
+  // Search filter
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return allRows;
+    const q = searchQuery.toLowerCase();
+    return allRows.filter(
+      (r) =>
+        r.userName.toLowerCase().includes(q) ||
+        r.userEmail.toLowerCase().includes(q) ||
+        (r.teamName && r.teamName.toLowerCase().includes(q))
+    );
+  }, [allRows, searchQuery]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const rows = filteredRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   if (!currentProgram) {
     return (
@@ -86,7 +114,7 @@ export function Reports() {
   }
 
   const handleExportCSV = () => {
-    if (rows.length === 0) {
+    if (filteredRows.length === 0) {
       toast.error("No data to export");
       return;
     }
@@ -97,12 +125,12 @@ export function Reports() {
       "Attendance %",
       "Attended",
       "Total Sessions",
-      "Completion %",
-      "Completed",
+      "Test Pass Rate %",
+      "Passed Tests",
       "Total Tests",
-      "Pending Reviews",
+      "Awaiting Review",
     ];
-    const csvRows = rows.map((r) => [
+    const csvRows = filteredRows.map((r) => [
       r.userName,
       r.userEmail,
       r.teamName || "-",
@@ -144,13 +172,13 @@ export function Reports() {
             </p>
           </div>
           <div className="border rounded-md p-3">
-            <p className="text-[11px] text-muted-foreground">Avg Completion</p>
+            <p className="text-[11px] text-muted-foreground">Avg Test Pass Rate</p>
             <p className="text-lg mt-1" style={{ fontWeight: 600 }}>
               {summary.avgCompletionRate}%
             </p>
           </div>
           <div className="border rounded-md p-3">
-            <p className="text-[11px] text-muted-foreground">Pending Reviews</p>
+            <p className="text-[11px] text-muted-foreground">Awaiting Review</p>
             <p className="text-lg mt-1" style={{ fontWeight: 600 }}>
               {summary.totalPendingReviews}
             </p>
@@ -158,9 +186,9 @@ export function Reports() {
         </div>
       )}
 
-      {/* Filters + Export */}
+      {/* Filters + Search + Export */}
       <div className="flex items-center gap-2">
-        <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+        <Select value={selectedWeek} onValueChange={(v) => { setSelectedWeek(v); setPage(1); }}>
           <SelectTrigger size="sm" className="w-44">
             <SelectValue placeholder="All Weeks" />
           </SelectTrigger>
@@ -173,7 +201,7 @@ export function Reports() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+        <Select value={selectedTeam} onValueChange={(v) => { setSelectedTeam(v); setPage(1); }}>
           <SelectTrigger size="sm" className="w-40">
             <SelectValue placeholder="All Teams" />
           </SelectTrigger>
@@ -186,6 +214,15 @@ export function Reports() {
             ))}
           </SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search trainee..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            className="h-8 w-44 pl-7 text-xs"
+          />
+        </div>
         <div className="flex-1" />
         <Button
           variant="outline"
@@ -199,25 +236,64 @@ export function Reports() {
       </div>
 
       {/* Trainee Report Table */}
-      {rows.length === 0 ? (
+      {filteredRows.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No trainees found"
           description={
-            selectedTeam !== "all"
-              ? "No trainees found for this team filter."
-              : "No trainees have been enrolled in this program yet."
+            searchQuery
+              ? "No trainees match your search."
+              : selectedTeam !== "all"
+                ? "No trainees found for this team filter."
+                : "No trainees have been enrolled in this program yet."
           }
         />
       ) : (
+        <TooltipProvider>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="h-8 text-xs">Name</TableHead>
               <TableHead className="h-8 text-xs">Team</TableHead>
-              <TableHead className="h-8 text-xs w-48">Attendance</TableHead>
-              <TableHead className="h-8 text-xs w-48">Completion</TableHead>
-              <TableHead className="h-8 text-xs text-center w-20">Pending</TableHead>
+              <TableHead className="h-8 text-xs w-48">
+                <div className="flex items-center gap-1">
+                  Attendance
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="size-3 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-52">
+                      (Present + Late) / Total Sessions × 100
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TableHead>
+              <TableHead className="h-8 text-xs w-48">
+                <div className="flex items-center gap-1">
+                  Test Pass Rate
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="size-3 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-52">
+                      (Pass + Reviewed) / Total Tests × 100
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TableHead>
+              <TableHead className="h-8 text-xs text-center w-28">
+                <div className="flex items-center justify-center gap-1">
+                  Awaiting Review
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="size-3 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-52">
+                      Submissions with status "Submitted" pending instructor review
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -273,6 +349,39 @@ export function Reports() {
             ))}
           </TableBody>
         </Table>
+        </TooltipProvider>
+      )}
+
+      {/* Pagination */}
+      {filteredRows.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredRows.length)} of {filteredRows.length}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="size-3.5" />
+            </Button>
+            <span className="text-xs text-muted-foreground px-2">
+              {safePage} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

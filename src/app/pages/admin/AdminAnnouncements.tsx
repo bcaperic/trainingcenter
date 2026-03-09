@@ -7,11 +7,12 @@ import { Textarea } from "../../components/ui/textarea";
 import { Switch } from "../../components/ui/switch";
 import { Label } from "../../components/ui/label";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "../../components/ui/sheet";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+  FloatingModalFooter,
+} from "../../components/FloatingModal";
 import { EmptyState } from "../../components/EmptyState";
 import { useProgram } from "../../context/ProgramContext";
 import { useApi, apiPost, apiPut, apiDelete } from "../../hooks/use-api";
@@ -28,7 +29,7 @@ import { toast } from "sonner";
 
 export function AdminAnnouncements() {
   const { currentProgram } = useProgram();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", body: "", pinned: false });
 
@@ -61,13 +62,13 @@ export function AdminAnnouncements() {
   const openCreate = () => {
     setEditingId(null);
     setForm({ title: "", body: "", pinned: false });
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
   const openEdit = (ann: Announcement) => {
     setEditingId(ann.id);
     setForm({ title: ann.title, body: ann.body, pinned: ann.isPinned });
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
   const handleSave = async () => {
@@ -89,7 +90,7 @@ export function AdminAnnouncements() {
         });
         toast.success("Announcement published");
       }
-      setDrawerOpen(false);
+      setModalOpen(false);
       refetch();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save announcement");
@@ -211,65 +212,67 @@ export function AdminAnnouncements() {
         </Card>
       )}
 
-      {/* Create/Edit Drawer */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="right" className="w-96">
-          <SheetHeader>
-            <SheetTitle className="text-sm">
-              {editingId ? "Edit Announcement" : "New Announcement"}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Title</Label>
-              <Input
-                className="text-sm"
-                placeholder="Announcement title"
-                value={form.title}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, title: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Body</Label>
-              <Textarea
-                className="text-sm min-h-[120px]"
-                placeholder="Announcement body"
-                value={form.body}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, body: e.target.value }))
-                }
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.pinned}
-                onCheckedChange={(val) =>
-                  setForm((prev) => ({ ...prev, pinned: val }))
-                }
-              />
-              <Label className="text-xs">Pin to top</Label>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                className="flex-1 h-9 text-xs"
-                onClick={handleSave}
-                disabled={!form.title.trim() || !form.body.trim()}
-              >
-                {editingId ? "Update" : "Publish"}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-9 text-xs"
-                onClick={() => setDrawerOpen(false)}
-              >
-                Cancel
-              </Button>
-            </div>
+      {/* Create/Edit Modal */}
+      <FloatingModal open={modalOpen} onOpenChange={setModalOpen}>
+        <FloatingModalHeader>
+          <FloatingModalTitle className="text-sm">
+            {editingId ? "Edit Announcement" : "New Announcement"}
+          </FloatingModalTitle>
+          <FloatingModalDescription className="text-xs">
+            {editingId ? "Update the announcement." : "Create a new announcement for learners."}
+          </FloatingModalDescription>
+        </FloatingModalHeader>
+        <div className="space-y-4 px-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input
+              className="text-sm"
+              placeholder="Announcement title"
+              value={form.title}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, title: e.target.value }))
+              }
+            />
           </div>
-        </SheetContent>
-      </Sheet>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Body</Label>
+            <Textarea
+              className="text-sm"
+              style={{ minHeight: 150 }}
+              placeholder="Announcement body"
+              value={form.body}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, body: e.target.value }))
+              }
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.pinned}
+              onCheckedChange={(val) =>
+                setForm((prev) => ({ ...prev, pinned: val }))
+              }
+            />
+            <Label className="text-xs">Pin to top</Label>
+          </div>
+        </div>
+        <FloatingModalFooter className="flex gap-2 p-4">
+          <Button
+            className="flex-1 h-9 text-xs"
+            onClick={handleSave}
+            disabled={!form.title.trim() || !form.body.trim()}
+          >
+            {editingId ? "Update" : "Publish"}
+          </Button>
+          <Button
+            variant="outline"
+            className="h-9 text-xs"
+            onClick={() => setModalOpen(false)}
+          >
+            Cancel
+          </Button>
+        </FloatingModalFooter>
+      </FloatingModal>
     </div>
   );
 }

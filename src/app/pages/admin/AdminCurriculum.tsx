@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,12 +20,12 @@ import {
   TableRow,
 } from "../../components/ui/table";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "../../components/ui/sheet";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+  FloatingModalFooter,
+} from "../../components/FloatingModal";
 import {
   Tabs,
   TabsList,
@@ -33,10 +34,12 @@ import {
 } from "../../components/ui/tabs";
 import { useProgram } from "../../context/ProgramContext";
 import { useApi, apiPost, apiPut } from "../../hooks/use-api";
-import type { Week, Mission } from "../../types/api";
-import { Plus, Search, Pencil } from "lucide-react";
+import api from "../../lib/api-client";
+import type { Week, Mission, MissionAttachment } from "../../types/api";
+import { Plus, Search, Pencil, Upload, Download, Trash2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { capitalize } from "../../lib/format";
 
 interface WeekForm {
   weekNo: number;
@@ -49,10 +52,17 @@ interface WeekForm {
 interface MissionForm {
   weekId: string;
   title: string;
+  description: string;
   dueAt: string;
   type: Mission["type"];
   status: Mission["status"];
 }
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 export function AdminCurriculum() {
   const { currentProgram } = useProgram();
@@ -60,8 +70,8 @@ export function AdminCurriculum() {
   const [tab, setTab] = useState("weeks");
   const [selectedWeekId, setSelectedWeekId] = useState<string>("");
 
-  // Week drawer
-  const [weekDrawerOpen, setWeekDrawerOpen] = useState(false);
+  // Week modal
+  const [weekModalOpen, setWeekModalOpen] = useState(false);
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   const [weekForm, setWeekForm] = useState<WeekForm>({
     weekNo: 1,
@@ -71,16 +81,22 @@ export function AdminCurriculum() {
     status: "DRAFT",
   });
 
-  // Mission drawer
-  const [missionDrawerOpen, setMissionDrawerOpen] = useState(false);
+  // Test modal
+  const [testModalOpen, setTestModalOpen] = useState(false);
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [missionForm, setMissionForm] = useState<MissionForm>({
     weekId: "",
     title: "",
+    description: "",
     dueAt: "",
     type: "REPORT",
     status: "DRAFT",
   });
+
+  // Test attachments
+  const [missionAttachments, setMissionAttachments] = useState<MissionAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: weeks, loading: weeksLoading, error: weeksError, refetch: refetchWeeks } =
     useApi<Week[]>(
@@ -90,13 +106,14 @@ export function AdminCurriculum() {
 
   const weeksList = weeks ?? [];
 
-  // Fetch missions for selected week (or first week when in missions tab)
-  const activeWeekId = selectedWeekId || weeksList[0]?.id || "";
+  const activeWeekId = selectedWeekId || "all";
 
   const { data: missions, loading: missionsLoading, refetch: refetchMissions } =
     useApi<Mission[]>(
-      currentProgram && activeWeekId
-        ? `/programs/${currentProgram.id}/missions/weeks/${activeWeekId}`
+      currentProgram
+        ? activeWeekId === "all"
+          ? `/programs/${currentProgram.id}/missions`
+          : `/programs/${currentProgram.id}/missions/weeks/${activeWeekId}`
         : null,
       [currentProgram?.id, activeWeekId]
     );
@@ -126,7 +143,7 @@ export function AdminCurriculum() {
     };
     return (
       <Badge variant="secondary" className={`text-[11px] ${styles[status] || ""}`}>
-        {status.toLowerCase()}
+        {capitalize(status)}
       </Badge>
     );
   };
@@ -140,16 +157,85 @@ export function AdminCurriculum() {
     };
     return (
       <Badge variant="secondary" className={`text-[11px] ${styles[type] || ""}`}>
-        {type.toLowerCase().replace("_", " ")}
+        {capitalize(type)}
       </Badge>
     );
   };
 
-  // Week handlers
+  // ── Attachment helpers ──
+
+  const loadAttachments = async (missionId: string) => {
+    try {
+      const res = await api.get(`/programs/${currentProgram!.id}/missions/${missionId}/attachments`);
+      setMissionAttachments(res.data);
+    } catch {
+      setMissionAttachments([]);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingMissionId) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be under 10MB");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await api.post(
+        `/programs/${currentProgram!.id}/missions/${editingMissionId}/attachments`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      toast.success("File uploaded");
+      await loadAttachments(editingMissionId);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDownloadAttachment = async (att: MissionAttachment) => {
+    try {
+      const res = await api.get(
+        `/programs/${currentProgram!.id}/missions/${att.missionId}/attachments/${att.id}/download`,
+        { responseType: "blob" }
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = att.filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Download failed");
+    }
+  };
+
+  const handleDeleteAttachment = async (att: MissionAttachment) => {
+    try {
+      await api.delete(
+        `/programs/${currentProgram!.id}/missions/${att.missionId}/attachments/${att.id}`
+      );
+      toast.success("Attachment deleted");
+      setMissionAttachments((prev) => prev.filter((a) => a.id !== att.id));
+    } catch {
+      toast.error("Delete failed");
+    }
+  };
+
+  // ── Week handlers ──
+
   const openCreateWeek = () => {
     setEditingWeekId(null);
     setWeekForm({ weekNo: weeksList.length + 1, title: "", startDate: "", endDate: "", status: "DRAFT" });
-    setWeekDrawerOpen(true);
+    setWeekModalOpen(true);
   };
 
   const openEditWeek = (w: Week) => {
@@ -161,7 +247,7 @@ export function AdminCurriculum() {
       endDate: w.endDate ? format(new Date(w.endDate), "yyyy-MM-dd") : "",
       status: w.status,
     });
-    setWeekDrawerOpen(true);
+    setWeekModalOpen(true);
   };
 
   const handleSaveWeek = async () => {
@@ -177,33 +263,37 @@ export function AdminCurriculum() {
         await apiPost(`/programs/${currentProgram!.id}/weeks`, weekForm);
         toast.success("Week created");
       }
-      setWeekDrawerOpen(false);
+      setWeekModalOpen(false);
       refetchWeeks();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save week");
     }
   };
 
-  // Mission handlers
-  const openCreateMission = () => {
+  // ── Test handlers ──
+
+  const openCreateTest = () => {
     setEditingMissionId(null);
-    setMissionForm({ weekId: activeWeekId, title: "", dueAt: "", type: "REPORT", status: "DRAFT" });
-    setMissionDrawerOpen(true);
+    setMissionForm({ weekId: activeWeekId === "all" ? (weeksList[0]?.id || "") : activeWeekId, title: "", description: "", dueAt: "", type: "REPORT", status: "DRAFT" });
+    setMissionAttachments([]);
+    setTestModalOpen(true);
   };
 
-  const openEditMission = (m: Mission) => {
+  const openEditTest = (m: Mission) => {
     setEditingMissionId(m.id);
     setMissionForm({
       weekId: m.weekId,
       title: m.title,
+      description: m.description || "",
       dueAt: m.dueAt ? format(new Date(m.dueAt), "yyyy-MM-dd") : "",
       type: m.type,
       status: m.status,
     });
-    setMissionDrawerOpen(true);
+    setTestModalOpen(true);
+    loadAttachments(m.id);
   };
 
-  const handleSaveMission = async () => {
+  const handleSaveTest = async () => {
     if (!missionForm.title.trim()) {
       toast.error("Title is required");
       return;
@@ -211,15 +301,15 @@ export function AdminCurriculum() {
     try {
       if (editingMissionId) {
         await apiPut(`/programs/${currentProgram!.id}/missions/${editingMissionId}`, missionForm);
-        toast.success("Mission updated");
+        toast.success("Test updated");
       } else {
         await apiPost(`/programs/${currentProgram!.id}/missions`, missionForm);
-        toast.success("Mission created");
+        toast.success("Test created");
       }
-      setMissionDrawerOpen(false);
+      setTestModalOpen(false);
       refetchMissions();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to save mission");
+      toast.error(err.response?.data?.message || "Failed to save test");
     }
   };
 
@@ -230,9 +320,10 @@ export function AdminCurriculum() {
         {tab === "missions" && (
           <Select value={activeWeekId} onValueChange={setSelectedWeekId}>
             <SelectTrigger size="sm" className="w-48">
-              <SelectValue placeholder="Select week" />
+              <SelectValue placeholder="All Tests" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All Tests</SelectItem>
               {weeksList.map((w) => (
                 <SelectItem key={w.id} value={w.id}>
                   Week {w.weekNo} - {w.title}
@@ -254,10 +345,10 @@ export function AdminCurriculum() {
         <Button
           size="sm"
           className="h-8 text-xs gap-1.5"
-          onClick={tab === "weeks" ? openCreateWeek : openCreateMission}
+          onClick={tab === "weeks" ? openCreateWeek : openCreateTest}
         >
           <Plus className="size-3.5" />
-          {tab === "weeks" ? "Create Week" : "Create Mission"}
+          {tab === "weeks" ? "Create Week" : "Create Test"}
         </Button>
       </div>
 
@@ -315,7 +406,7 @@ export function AdminCurriculum() {
           </Table>
         </TabsContent>
 
-        {/* Missions Tab */}
+        {/* Tests Tab */}
         <TabsContent value="missions">
           {missionsLoading ? (
             <div className="p-6 text-muted-foreground">Loading tests...</div>
@@ -324,7 +415,7 @@ export function AdminCurriculum() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="h-8 text-xs w-16">Week</TableHead>
-                  <TableHead className="h-8 text-xs">Mission Title</TableHead>
+                  <TableHead className="h-8 text-xs">Test Title</TableHead>
                   <TableHead className="h-8 text-xs">Due</TableHead>
                   <TableHead className="h-8 text-xs">Type</TableHead>
                   <TableHead className="h-8 text-xs">Status</TableHead>
@@ -352,7 +443,7 @@ export function AdminCurriculum() {
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0"
-                          onClick={() => openEditMission(m)}
+                          onClick={() => openEditTest(m)}
                         >
                           <Pencil className="size-3.5" />
                         </Button>
@@ -366,174 +457,35 @@ export function AdminCurriculum() {
         </TabsContent>
       </Tabs>
 
-      {/* Week Drawer */}
-      <Sheet open={weekDrawerOpen} onOpenChange={setWeekDrawerOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="text-sm">
-              {editingWeekId ? "Edit Week" : "Create Week"}
-            </SheetTitle>
-            <SheetDescription className="text-xs">
-              {editingWeekId ? "Update week details." : "Add a new week to the curriculum."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 space-y-4 flex-1 overflow-auto">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Week No.</Label>
-                <Input
-                  className="h-8 text-sm"
-                  type="number"
-                  value={weekForm.weekNo}
-                  onChange={(e) =>
-                    setWeekForm({ ...weekForm, weekNo: parseInt(e.target.value) || 1 })
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Status</Label>
-                <Select
-                  value={weekForm.status}
-                  onValueChange={(v) =>
-                    setWeekForm({ ...weekForm, status: v as Week["status"] })
-                  }
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DRAFT">Draft</SelectItem>
-                    <SelectItem value="PUBLISHED">Published</SelectItem>
-                    <SelectItem value="CLOSED">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+      {/* Week Modal */}
+      <FloatingModal open={weekModalOpen} onOpenChange={setWeekModalOpen}>
+        <FloatingModalHeader>
+          <FloatingModalTitle className="text-sm">
+            {editingWeekId ? "Edit Week" : "Create Week"}
+          </FloatingModalTitle>
+          <FloatingModalDescription className="text-xs">
+            {editingWeekId ? "Update week details." : "Add a new week to the curriculum."}
+          </FloatingModalDescription>
+        </FloatingModalHeader>
+        <div className="px-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Title</Label>
+              <Label className="text-xs">Week No.</Label>
               <Input
                 className="h-8 text-sm"
-                value={weekForm.title}
-                onChange={(e) => setWeekForm({ ...weekForm, title: e.target.value })}
-                placeholder="e.g. Framework & Message Parsing"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Start Date</Label>
-                <Input
-                  className="h-8 text-sm"
-                  type="date"
-                  value={weekForm.startDate}
-                  onChange={(e) => setWeekForm({ ...weekForm, startDate: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">End Date</Label>
-                <Input
-                  className="h-8 text-sm"
-                  type="date"
-                  value={weekForm.endDate}
-                  onChange={(e) => setWeekForm({ ...weekForm, endDate: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="p-4 border-t mt-auto">
-            <Button className="w-full h-8 text-sm" onClick={handleSaveWeek}>
-              {editingWeekId ? "Save Changes" : "Create Week"}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Mission Drawer */}
-      <Sheet open={missionDrawerOpen} onOpenChange={setMissionDrawerOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="text-sm">
-              {editingMissionId ? "Edit Mission" : "Create Mission"}
-            </SheetTitle>
-            <SheetDescription className="text-xs">
-              {editingMissionId ? "Update mission details." : "Add a new mission to the curriculum."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 space-y-4 flex-1 overflow-auto">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Week</Label>
-              <Select
-                value={missionForm.weekId}
-                onValueChange={(v) =>
-                  setMissionForm({ ...missionForm, weekId: v })
-                }
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue placeholder="Select week" />
-                </SelectTrigger>
-                <SelectContent>
-                  {weeksList.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      W{w.weekNo} — {w.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Title</Label>
-              <Input
-                className="h-8 text-sm"
-                value={missionForm.title}
+                type="number"
+                value={weekForm.weekNo}
                 onChange={(e) =>
-                  setMissionForm({ ...missionForm, title: e.target.value })
+                  setWeekForm({ ...weekForm, weekNo: parseInt(e.target.value) || 1 })
                 }
-                placeholder="e.g. Architecture Diagram"
               />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Due Date</Label>
-                <Input
-                  className="h-8 text-sm"
-                  type="date"
-                  value={missionForm.dueAt}
-                  onChange={(e) =>
-                    setMissionForm({ ...missionForm, dueAt: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Type</Label>
-                <Select
-                  value={missionForm.type}
-                  onValueChange={(v) =>
-                    setMissionForm({
-                      ...missionForm,
-                      type: v as Mission["type"],
-                    })
-                  }
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="REPORT">Report</SelectItem>
-                    <SelectItem value="CODE">Code</SelectItem>
-                    <SelectItem value="TEST">Test</SelectItem>
-                    <SelectItem value="DRILL_RESULT">Drill Result</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Status</Label>
               <Select
-                value={missionForm.status}
+                value={weekForm.status}
                 onValueChange={(v) =>
-                  setMissionForm({
-                    ...missionForm,
-                    status: v as Mission["status"],
-                  })
+                  setWeekForm({ ...weekForm, status: v as Week["status"] })
                 }
               >
                 <SelectTrigger size="sm" className="w-full">
@@ -547,13 +499,221 @@ export function AdminCurriculum() {
               </Select>
             </div>
           </div>
-          <div className="p-4 border-t mt-auto">
-            <Button className="w-full h-8 text-sm" onClick={handleSaveMission}>
-              {editingMissionId ? "Save Changes" : "Create Mission"}
-            </Button>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input
+              className="h-8 text-sm"
+              value={weekForm.title}
+              onChange={(e) => setWeekForm({ ...weekForm, title: e.target.value })}
+              placeholder="e.g. Framework & Message Parsing"
+            />
           </div>
-        </SheetContent>
-      </Sheet>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Start Date</Label>
+              <Input
+                className="h-8 text-sm"
+                type="date"
+                value={weekForm.startDate}
+                onChange={(e) => setWeekForm({ ...weekForm, startDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">End Date</Label>
+              <Input
+                className="h-8 text-sm"
+                type="date"
+                value={weekForm.endDate}
+                onChange={(e) => setWeekForm({ ...weekForm, endDate: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+        <FloatingModalFooter className="p-4">
+          <Button className="w-full h-8 text-sm" onClick={handleSaveWeek}>
+            {editingWeekId ? "Save Changes" : "Create Week"}
+          </Button>
+        </FloatingModalFooter>
+      </FloatingModal>
+
+      {/* Test Modal */}
+      <FloatingModal open={testModalOpen} onOpenChange={setTestModalOpen} className="sm:max-w-4xl">
+        <FloatingModalHeader>
+          <FloatingModalTitle className="text-sm">
+            {editingMissionId ? "Edit Test" : "Create Test"}
+          </FloatingModalTitle>
+          <FloatingModalDescription className="text-xs">
+            {editingMissionId ? "Update test details." : "Add a new test to the curriculum."}
+          </FloatingModalDescription>
+        </FloatingModalHeader>
+        <div className="px-4 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Week</Label>
+            <Select
+              value={missionForm.weekId}
+              onValueChange={(v) =>
+                setMissionForm({ ...missionForm, weekId: v })
+              }
+            >
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue placeholder="Select week" />
+              </SelectTrigger>
+              <SelectContent>
+                {weeksList.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    W{w.weekNo} — {w.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input
+              className="h-8 text-sm"
+              value={missionForm.title}
+              onChange={(e) =>
+                setMissionForm({ ...missionForm, title: e.target.value })
+              }
+              placeholder="e.g. Architecture Diagram"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Description</Label>
+            <Textarea
+              className="text-sm"
+              style={{ minHeight: 120 }}
+              value={missionForm.description}
+              onChange={(e) =>
+                setMissionForm({ ...missionForm, description: e.target.value })
+              }
+              placeholder="Test instructions, requirements, grading criteria..."
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Due Date</Label>
+              <Input
+                className="h-8 text-sm"
+                type="date"
+                value={missionForm.dueAt}
+                onChange={(e) =>
+                  setMissionForm({ ...missionForm, dueAt: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Type</Label>
+              <Select
+                value={missionForm.type}
+                onValueChange={(v) =>
+                  setMissionForm({
+                    ...missionForm,
+                    type: v as Mission["type"],
+                  })
+                }
+              >
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="REPORT">Report</SelectItem>
+                  <SelectItem value="CODE">Code</SelectItem>
+                  <SelectItem value="TEST">Test</SelectItem>
+                  <SelectItem value="DRILL_RESULT">Drill Result</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Status</Label>
+            <Select
+              value={missionForm.status}
+              onValueChange={(v) =>
+                setMissionForm({
+                  ...missionForm,
+                  status: v as Mission["status"],
+                })
+              }
+            >
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+                <SelectItem value="CLOSED">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Attachments — only in edit mode */}
+          {editingMissionId && (
+            <div className="space-y-2 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Attachments</Label>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleUpload}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <Upload className="size-3" />
+                    {uploading ? "Uploading..." : "Upload"}
+                  </Button>
+                </div>
+              </div>
+              {missionAttachments.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No attachments yet.</p>
+              ) : (
+                <div className="space-y-1">
+                  {missionAttachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-2 border rounded px-2 py-1.5 bg-muted/20"
+                    >
+                      <FileText className="size-3 text-muted-foreground shrink-0" />
+                      <span className="text-xs truncate flex-1">{att.filename}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {formatFileSize(att.size)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 shrink-0"
+                        onClick={() => handleDownloadAttachment(att)}
+                      >
+                        <Download className="size-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 shrink-0 text-destructive"
+                        onClick={() => handleDeleteAttachment(att)}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <FloatingModalFooter className="p-4">
+          <Button className="w-full h-8 text-sm" onClick={handleSaveTest}>
+            {editingMissionId ? "Save Changes" : "Create Test"}
+          </Button>
+        </FloatingModalFooter>
+      </FloatingModal>
     </div>
   );
 }

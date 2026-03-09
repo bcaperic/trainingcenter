@@ -3,15 +3,22 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
   Query,
+  Res,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto, UpdateSessionDto } from './dto/create-session.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 
 @Controller('programs/:programId/sessions')
@@ -73,5 +80,50 @@ export class SessionsController {
   @UseGuards(RolesGuard)
   generateCheckinCode(@Param('sessionId') sessionId: string) {
     return this.sessionsService.generateCheckinCode(sessionId);
+  }
+
+  // ── Session Attachments ──
+
+  @Get(':sessionId/attachments')
+  listAttachments(@Param('sessionId') sessionId: string) {
+    return this.sessionsService.listSessionAttachments(sessionId);
+  }
+
+  @Post(':sessionId/attachments')
+  @Roles('ADMIN', 'INSTRUCTOR')
+  @UseGuards(RolesGuard)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadAttachment(
+    @Param('sessionId') sessionId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.sessionsService.uploadSessionAttachment(sessionId, file, userId);
+  }
+
+  @Get(':sessionId/attachments/:attachmentId/download')
+  async downloadAttachment(
+    @Param('sessionId') sessionId: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    const { stream, attachment } =
+      await this.sessionsService.downloadSessionAttachment(sessionId, attachmentId);
+    res.set({
+      'Content-Type': attachment.mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.filename)}"`,
+      'Content-Length': String(attachment.size),
+    });
+    stream.pipe(res);
+  }
+
+  @Delete(':sessionId/attachments/:attachmentId')
+  @Roles('ADMIN', 'INSTRUCTOR')
+  @UseGuards(RolesGuard)
+  deleteAttachment(
+    @Param('sessionId') sessionId: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.sessionsService.deleteSessionAttachment(sessionId, attachmentId);
   }
 }

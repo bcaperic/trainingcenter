@@ -11,12 +11,12 @@ import {
   TableRow,
 } from "../../components/ui/table";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "../../components/ui/sheet";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+  FloatingModalFooter,
+} from "../../components/FloatingModal";
 import { useProgram } from "../../context/ProgramContext";
 import { useApi, apiPost, apiPut } from "../../hooks/use-api";
 import type { Team } from "../../types/api";
@@ -144,45 +144,51 @@ export function AdminTeams() {
         </TableBody>
       </Table>
 
-      {/* Create/Edit Drawer */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="text-sm">
-              {editingId ? "Edit Team" : "Create Team"}
-            </SheetTitle>
-            <SheetDescription className="text-xs">
-              {editingId ? "Update team details." : "Add a new team."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 space-y-4 flex-1 overflow-auto">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Team Name</Label>
-              <Input
-                className="h-8 text-sm"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Auth Team"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Team Lead (optional)</Label>
-              <Input
-                className="h-8 text-sm"
-                value={form.lead}
-                onChange={(e) => setForm({ ...form, lead: e.target.value })}
-                placeholder="e.g. Felix"
-                disabled
-              />
-            </div>
+      {/* Create/Edit Modal */}
+      <FloatingModal open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <FloatingModalHeader>
+          <FloatingModalTitle className="text-sm">
+            {editingId ? "Edit Team" : "Create Team"}
+          </FloatingModalTitle>
+          <FloatingModalDescription className="text-xs">
+            {editingId ? "Update team details." : "Add a new team."}
+          </FloatingModalDescription>
+        </FloatingModalHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Team Name</Label>
+            <Input
+              className="h-8 text-sm"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Auth Team"
+            />
           </div>
-          <div className="p-4 border-t mt-auto">
-            <Button className="w-full h-8 text-sm" onClick={handleSave}>
-              {editingId ? "Save Changes" : "Create Team"}
-            </Button>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Team Lead (optional)</Label>
+            <Input
+              className="h-8 text-sm"
+              value={form.lead}
+              onChange={(e) => setForm({ ...form, lead: e.target.value })}
+              placeholder="e.g. Felix"
+              disabled
+            />
           </div>
-        </SheetContent>
-      </Sheet>
+        </div>
+        <FloatingModalFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDrawerOpen(false)}
+            className="text-xs"
+          >
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSave} className="text-xs">
+            {editingId ? "Save Changes" : "Create Team"}
+          </Button>
+        </FloatingModalFooter>
+      </FloatingModal>
     </div>
   );
 }

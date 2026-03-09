@@ -86,10 +86,23 @@ export interface Week {
 }
 
 // ─── Session ───
+export interface SessionAttachment {
+  id: string;
+  sessionId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  key: string;
+  uploadedAt: string;
+  uploadedBy: string;
+}
+
 export interface Session {
   id: string;
   programId: string;
   weekId: string | null;
+  instructorId: string | null;
+  instructorName?: string | null;
   type: "LIVE" | "MAKEUP" | "DRILL" | "EVAL" | "WAR_ROOM";
   title: string;
   description: string;
@@ -101,9 +114,22 @@ export interface Session {
   status: "DRAFT" | "PUBLISHED" | "ONGOING" | "ENDED" | "CANCELED";
   checkinMode: "CODE" | "BUTTON";
   enrolledCount?: number;
+  attachmentCount?: number;
+  attachments?: SessionAttachment[];
 }
 
 // ─── Mission ───
+export interface MissionAttachment {
+  id: string;
+  missionId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  key: string;
+  uploadedAt: string;
+  uploadedBy: string;
+}
+
 export interface Mission {
   id: string;
   programId: string;
@@ -116,6 +142,8 @@ export interface Mission {
   submissionCount?: number;
   userStatus?: "pending" | "submitted" | "reviewed" | "overdue";
   userSubmission?: Submission;
+  attachments?: MissionAttachment[];
+  week?: { id: string; weekNo: number; title: string };
 }
 
 // ─── Submission ───
@@ -141,6 +169,10 @@ export interface Submission {
   feedback: string | null;
   reviewedAt: string | null;
   attachments?: SubmissionAttachment[];
+}
+
+export interface SubmissionWithUser extends Submission {
+  user: { id: string; name: string; email: string };
 }
 
 // ─── Team ───

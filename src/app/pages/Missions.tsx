@@ -23,6 +23,7 @@ import type { Week, Mission } from "../types/api";
 import { FileText, Link2, Clock, Folder, CalendarX, Target, Paperclip, Download, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { capitalize } from "../lib/format";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -91,7 +92,7 @@ export function Missions() {
     };
     return (
       <Badge variant="secondary" className={`text-[11px] ${styles[s] || ""}`}>
-        {s}
+        {capitalize(s)}
       </Badge>
     );
   };
@@ -250,12 +251,56 @@ export function Missions() {
             </FloatingModalHeader>
             <div className="space-y-4">
               {/* Description */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Description</p>
-                <p className="text-xs leading-relaxed whitespace-pre-wrap">
-                  {selectedMission.description}
-                </p>
-              </div>
+              {selectedMission.description && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Description</p>
+                  <p className="text-xs leading-relaxed whitespace-pre-wrap">
+                    {selectedMission.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Reference Files */}
+              {selectedMission.attachments && selectedMission.attachments.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground mb-1">Reference Files</p>
+                  {selectedMission.attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-2 border rounded px-2 py-1.5 bg-muted/20"
+                    >
+                      <Folder className="size-3 text-muted-foreground shrink-0" />
+                      <span className="text-xs truncate flex-1">{att.filename}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {formatFileSize(att.size)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 shrink-0"
+                        onClick={async () => {
+                          try {
+                            const res = await api.get(
+                              `/programs/${currentProgram.id}/missions/${selectedMission.id}/attachments/${att.id}/download`,
+                              { responseType: "blob" }
+                            );
+                            const url = window.URL.createObjectURL(new Blob([res.data]));
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = att.filename;
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                          } catch {
+                            toast.error("Download failed");
+                          }
+                        }}
+                      >
+                        <Download className="size-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Submission Form */}
               {(selectedMission.userStatus === "pending" ||
@@ -383,7 +428,7 @@ export function Missions() {
                               : "bg-blue-50 text-blue-700"
                           }`}
                         >
-                          {selectedMission.userSubmission.status.toLowerCase()}
+                          {capitalize(selectedMission.userSubmission.status)}
                         </Badge>
                         {selectedMission.userSubmission.score !== null && (
                           <Badge

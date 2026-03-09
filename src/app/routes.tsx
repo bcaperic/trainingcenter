@@ -22,6 +22,7 @@ import { AdminTeams } from "./pages/admin/AdminTeams";
 import { AdminCurriculum } from "./pages/admin/AdminCurriculum";
 import { AdminSessions } from "./pages/admin/AdminSessions";
 import { AdminAnnouncements } from "./pages/admin/AdminAnnouncements";
+import { AdminSubmissions } from "./pages/admin/AdminSubmissions";
 
 // Learner pages
 import { LearnerHome } from "./pages/learner/LearnerHome";
@@ -57,7 +58,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, Component: AdminDashboard },
           { path: "schedule", Component: Schedule },
-          { path: "missions", Component: Missions },
+          { path: "tests", Component: Missions },
           { path: "attendance", Component: Attendance },
           { path: "reports", Component: Reports },
           // CMS
@@ -67,6 +68,7 @@ export const router = createBrowserRouter([
           { path: "curriculum", Component: AdminCurriculum },
           { path: "sessions", Component: AdminSessions },
           { path: "announcements", Component: AdminAnnouncements },
+          { path: "submissions", Component: AdminSubmissions },
         ],
       },
     ],
@@ -81,7 +83,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, Component: LearnerHome },
           { path: "schedule", Component: LearnerSchedule },
-          { path: "missions", Component: LearnerMissions },
+          { path: "tests", Component: LearnerMissions },
           { path: "progress", Component: LearnerProgress },
           { path: "profile", Component: LearnerProfile },
           { path: "recordings", Component: LearnerRecordings },
@@ -100,7 +102,7 @@ export const router = createBrowserRouter([
           { index: true, Component: MobileHome },
           { path: "schedule", Component: MobileSchedule },
           { path: "checkin", Component: MobileCheckin },
-          { path: "missions", Component: MobileMissions },
+          { path: "tests", Component: MobileMissions },
           { path: "profile", Component: MobileProfile },
           { path: "notifications", Component: MobileNotifications },
           { path: "recordings", Component: MobileRecordings },

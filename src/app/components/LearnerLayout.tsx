@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { capitalize } from "../lib/format";
 import { useProgram } from "../context/ProgramContext";
 import { useAuth } from "../context/AuthContext";
 import { NotificationBell } from "./NotificationBell";
@@ -26,7 +27,7 @@ import {
 const navItems = [
   { to: "/learn", icon: Home, label: "Home", end: true },
   { to: "/learn/schedule", icon: Calendar, label: "Schedule" },
-  { to: "/learn/missions", icon: Target, label: "Tests" },
+  { to: "/learn/tests", icon: Target, label: "Tests" },
   { to: "/learn/recordings", icon: Video, label: "Recordings" },
   { to: "/learn/progress", icon: TrendingUp, label: "Progress" },
   { to: "/learn/profile", icon: User, label: "Profile" },
@@ -144,7 +145,7 @@ export function LearnerLayout() {
                       variant="secondary"
                       className={`text-[10px] px-1 py-0 ${statusColor[p.status] || ""}`}
                     >
-                      {p.status}
+                      {capitalize(p.status)}
                     </Badge>
                   </div>
                 </SelectItem>

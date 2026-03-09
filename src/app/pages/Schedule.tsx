@@ -29,6 +29,7 @@ import { useApi } from "../hooks/use-api";
 import type { Session, Week, PaginatedResponse, Team } from "../types/api";
 import { Search, ExternalLink, Video, Folder, CalendarX, Calendar } from "lucide-react";
 import { format } from "date-fns";
+import { capitalize } from "../lib/format";
 
 function formatTimeRange(startAt: string, endAt: string): string {
   try {
@@ -40,13 +41,13 @@ function formatTimeRange(startAt: string, endAt: string): string {
 
 function formatSessionType(type: Session["type"]): string {
   const map: Record<string, string> = {
-    LIVE: "online",
-    MAKEUP: "makeup",
-    DRILL: "drill",
-    EVAL: "eval",
-    WAR_ROOM: "war room",
+    LIVE: "Online",
+    MAKEUP: "Makeup",
+    DRILL: "Drill",
+    EVAL: "Eval",
+    WAR_ROOM: "War room",
   };
-  return map[type] || type.toLowerCase();
+  return map[type] || capitalize(type);
 }
 
 export function Schedule() {
@@ -117,7 +118,7 @@ export function Schedule() {
     };
     return (
       <Badge variant="secondary" className={`text-[10px] ${styles[status] || ""}`}>
-        {status.toLowerCase()}
+        {capitalize(status)}
       </Badge>
     );
   };

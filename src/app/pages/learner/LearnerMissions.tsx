@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -11,19 +11,37 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "../../components/ui/sheet";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+  FloatingModalFooter,
+} from "../../components/FloatingModal";
 import { EmptyState } from "../../components/EmptyState";
 import { useProgram } from "../../context/ProgramContext";
-import { useApi, apiPost } from "../../hooks/use-api";
+import { useApi } from "../../hooks/use-api";
+import api from "../../lib/api-client";
 import type { Week, Mission } from "../../types/api";
 import { format } from "date-fns";
-import { FileText, Link2, Clock, Folder, CalendarX, Target } from "lucide-react";
+import {
+  FileText,
+  Link2,
+  Clock,
+  Folder,
+  CalendarX,
+  Target,
+  Paperclip,
+  Download,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
+import { capitalize } from "../../lib/format";
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function LearnerMissions() {
   const { currentProgram } = useProgram();
@@ -31,6 +49,9 @@ export function LearnerMissions() {
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [submissionType, setSubmissionType] = useState<"link" | "text">("link");
   const [submissionContent, setSubmissionContent] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pid = currentProgram?.id;
 
@@ -39,18 +60,20 @@ export function LearnerMissions() {
 
   const programWeeks = weeksData ?? [];
 
-  // Fetch missions for the selected week, or first week if "all"
-  const activeWeekId = selectedWeek !== "all" ? selectedWeek : programWeeks[0]?.id ?? null;
+  const activeWeekId =
+    selectedWeek !== "all" ? selectedWeek : programWeeks[0]?.id ?? null;
 
-  const { data: missionsData, loading: loadingMissions, refetch: refetchMissions } =
-    useApi<Mission[]>(
-      pid && activeWeekId
-        ? `/programs/${pid}/missions/weeks/${activeWeekId}`
-        : null,
-      [pid, activeWeekId]
-    );
+  const {
+    data: missionsData,
+    loading: loadingMissions,
+    refetch: refetchMissions,
+  } = useApi<Mission[]>(
+    pid && activeWeekId
+      ? `/programs/${pid}/missions/weeks/${activeWeekId}`
+      : null,
+    [pid, activeWeekId]
+  );
 
-  // When "all" is selected, we show missions from the first week (API is per-week)
   const filteredMissions = missionsData ?? [];
 
   if (!currentProgram) {
@@ -82,27 +105,63 @@ export function LearnerMissions() {
     submitted: "bg-blue-50 text-blue-700",
     reviewed: "bg-green-50 text-green-700",
     overdue: "bg-red-50 text-red-600",
+    PASS: "bg-green-50 text-green-700",
+    FAIL: "bg-red-50 text-red-600",
+    RETURNED: "bg-amber-50 text-amber-700",
   };
 
   const handleSubmit = async () => {
-    if (!submissionContent.trim()) {
-      toast.error("Please enter submission content");
+    if (!submissionContent.trim() && !selectedFile) {
+      toast.error("Please enter submission content or attach a file");
       return;
     }
     if (!selectedMission || !pid) return;
+    setSubmitting(true);
     try {
-      const body =
-        submissionType === "link"
-          ? { contentUrl: submissionContent.trim(), contentText: null }
-          : { contentText: submissionContent.trim(), contentUrl: null };
-      await apiPost(`/programs/${pid}/missions/${selectedMission.id}/submit`, body);
-      toast.success("Submitted!");
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        if (submissionType === "link" && submissionContent.trim()) {
+          formData.append("contentUrl", submissionContent);
+        } else if (submissionType === "text" && submissionContent.trim()) {
+          formData.append("contentText", submissionContent);
+        }
+        await api.post(
+          `/programs/${pid}/missions/${selectedMission.id}/submit-with-file`,
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
+      } else {
+        await api.post(
+          `/programs/${pid}/missions/${selectedMission.id}/submit`,
+          {
+            contentUrl: submissionType === "link" ? submissionContent : null,
+            contentText: submissionType === "text" ? submissionContent : null,
+          }
+        );
+      }
+      toast.success("Submitted successfully!");
       setSubmissionContent("");
+      setSelectedFile(null);
       setSelectedMission(null);
       refetchMissions();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Submission failed");
+    } catch {
+      toast.error("Failed to submit");
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleDownloadAttachment = (
+    submissionId: string,
+    attachmentId: string
+  ) => {
+    const token = localStorage.getItem("accessToken");
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "/api";
+    window.open(
+      `${baseUrl}/programs/${pid}/submissions/${submissionId}/attachments/${attachmentId}/download?token=${token}`,
+      "_blank"
+    );
   };
 
   return (
@@ -147,14 +206,14 @@ export function LearnerMissions() {
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
                       <Clock className="size-3" />
-                      Due: {m.dueAt ? format(new Date(m.dueAt), "yyyy-MM-dd") : "—"}
+                      Due: {m.dueAt ? format(new Date(m.dueAt), "yyyy-MM-dd") : "\u2014"}
                     </p>
                   </div>
                   <Badge
                     variant="secondary"
                     className={`text-[10px] shrink-0 ${statusStyle[status] || ""}`}
                   >
-                    {status}
+                    {capitalize(status)}
                   </Badge>
                   {(status === "pending" || status === "overdue") && (
                     <Button
@@ -176,52 +235,124 @@ export function LearnerMissions() {
         </div>
       )}
 
-      {/* Mission Detail */}
-      <Sheet
+      {/* Mission Detail Modal */}
+      <FloatingModal
         open={!!selectedMission}
-        onOpenChange={() => setSelectedMission(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedMission(null);
+            setSubmissionContent("");
+            setSelectedFile(null);
+          }
+        }}
       >
-        <SheetContent className="sm:max-w-md">
-          {selectedMission && (() => {
+        {selectedMission &&
+          (() => {
             const status = selectedMission.userStatus ?? "pending";
-            const weekLabel = programWeeks.find((w) => w.id === selectedMission.weekId);
+            const weekLabel = programWeeks.find(
+              (w) => w.id === selectedMission.weekId
+            );
             return (
               <>
-                <SheetHeader>
-                  <SheetTitle className="text-sm">
-                    {selectedMission.title}
-                  </SheetTitle>
-                  <SheetDescription className="text-xs">
-                    Due: {selectedMission.dueAt ? format(new Date(selectedMission.dueAt), "yyyy-MM-dd") : "—"}
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="px-4 space-y-4 flex-1 overflow-auto">
-                  <div className="flex items-center gap-2">
+                <FloatingModalHeader>
+                  <div className="flex items-center gap-2 mb-1">
                     <Badge
                       variant="secondary"
                       className={`text-[11px] ${statusStyle[status] || ""}`}
                     >
-                      {status}
+                      {capitalize(status)}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {weekLabel ? `Week ${weekLabel.weekNo} - ${weekLabel.title}` : ""}
+                    <span className="text-[11px] text-muted-foreground">
+                      {weekLabel
+                        ? `Week ${weekLabel.weekNo} - ${weekLabel.title}`
+                        : ""}
                     </span>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Description</p>
-                    <p className="text-xs leading-relaxed">
-                      {selectedMission.description}
-                    </p>
-                  </div>
+                  <FloatingModalTitle className="text-sm">
+                    {selectedMission.title}
+                  </FloatingModalTitle>
+                  <FloatingModalDescription className="text-xs">
+                    Due:{" "}
+                    {selectedMission.dueAt
+                      ? format(new Date(selectedMission.dueAt), "yyyy-MM-dd")
+                      : "\u2014"}
+                  </FloatingModalDescription>
+                </FloatingModalHeader>
+                <div className="space-y-4">
+                  {/* Description */}
+                  {selectedMission.description && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Description
+                      </p>
+                      <p className="text-xs leading-relaxed whitespace-pre-wrap">
+                        {selectedMission.description}
+                      </p>
+                    </div>
+                  )}
 
-                  {(status === "pending" || status === "overdue") && (
-                    <div className="space-y-2 pt-2 border-t">
+                  {/* Reference Files */}
+                  {selectedMission.attachments &&
+                    selectedMission.attachments.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Reference Files
+                        </p>
+                        {selectedMission.attachments.map((att) => (
+                          <div
+                            key={att.id}
+                            className="flex items-center gap-2 border rounded px-2 py-1.5 bg-muted/20"
+                          >
+                            <Folder className="size-3 text-muted-foreground shrink-0" />
+                            <span className="text-xs truncate flex-1">
+                              {att.filename}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {formatFileSize(att.size)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0"
+                              onClick={async () => {
+                                try {
+                                  const res = await api.get(
+                                    `/programs/${pid}/missions/${selectedMission.id}/attachments/${att.id}/download`,
+                                    { responseType: "blob" }
+                                  );
+                                  const url = window.URL.createObjectURL(
+                                    new Blob([res.data])
+                                  );
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = att.filename;
+                                  a.click();
+                                  window.URL.revokeObjectURL(url);
+                                } catch {
+                                  toast.error("Download failed");
+                                }
+                              }}
+                            >
+                              <Download className="size-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                  {/* Submission Form */}
+                  {(status === "pending" ||
+                    status === "overdue" ||
+                    !selectedMission.userStatus) && (
+                    <div className="space-y-3 pt-3 border-t">
                       <p className="text-xs" style={{ fontWeight: 500 }}>
                         Submit your work
                       </p>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1.5">
                         <Button
-                          variant={submissionType === "link" ? "default" : "outline"}
+                          variant={
+                            submissionType === "link" ? "default" : "outline"
+                          }
                           size="sm"
                           className="h-7 text-xs gap-1"
                           onClick={() => setSubmissionType("link")}
@@ -230,7 +361,9 @@ export function LearnerMissions() {
                           Link
                         </Button>
                         <Button
-                          variant={submissionType === "text" ? "default" : "outline"}
+                          variant={
+                            submissionType === "text" ? "default" : "outline"
+                          }
                           size="sm"
                           className="h-7 text-xs gap-1"
                           onClick={() => setSubmissionType("text")}
@@ -244,49 +377,138 @@ export function LearnerMissions() {
                           placeholder="https://docs.google.com/..."
                           value={submissionContent}
                           onChange={(e) => setSubmissionContent(e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-9 text-xs"
                         />
                       ) : (
                         <textarea
                           placeholder="Enter your submission..."
                           value={submissionContent}
                           onChange={(e) => setSubmissionContent(e.target.value)}
-                          className="w-full h-24 text-xs border rounded-md p-2 bg-input-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          className="w-full text-xs border rounded-md p-3 bg-input-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          style={{ minHeight: "200px" }}
                         />
                       )}
-                      <Button className="w-full h-8 text-sm" onClick={handleSubmit}>
-                        Submit
+
+                      {/* File attachment */}
+                      <div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 10 * 1024 * 1024) {
+                                toast.error("File must be under 10 MB");
+                                return;
+                              }
+                              setSelectedFile(file);
+                            }
+                          }}
+                        />
+                        {selectedFile ? (
+                          <div className="flex items-center gap-2 border rounded-md px-3 py-2 bg-muted/20">
+                            <Paperclip className="size-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-xs truncate flex-1">
+                              {selectedFile.name}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {formatFileSize(selectedFile.size)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0"
+                              onClick={() => {
+                                setSelectedFile(null);
+                                if (fileInputRef.current)
+                                  fileInputRef.current.value = "";
+                              }}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <Paperclip className="size-3" />
+                            Attach file (max 10 MB)
+                          </Button>
+                        )}
+                      </div>
+
+                      <Button
+                        className="w-full h-9 text-sm"
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                      >
+                        {submitting ? "Submitting..." : "Submit"}
                       </Button>
                     </div>
                   )}
 
+                  {/* Submission History */}
                   {selectedMission.userSubmission && (
-                    <div className="space-y-2 pt-2 border-t">
+                    <div className="space-y-2 pt-3 border-t">
                       <p className="text-xs" style={{ fontWeight: 500 }}>
                         Your Submission
                       </p>
-                      <div className="border rounded-md p-2.5 space-y-1 bg-muted/20">
+                      <div className="border rounded-md p-3 space-y-2 bg-muted/20">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] text-muted-foreground">
-                            {format(new Date(selectedMission.userSubmission.submittedAt), "yyyy-MM-dd HH:mm")}
+                            Submitted:{" "}
+                            {format(
+                              new Date(
+                                selectedMission.userSubmission.submittedAt
+                              ),
+                              "yyyy-MM-dd HH:mm"
+                            )}
                           </span>
-                          {selectedMission.userSubmission.score !== null && (
+                          <div className="flex items-center gap-2">
                             <Badge
                               variant="secondary"
-                              className={`text-[11px] ${
-                                selectedMission.userSubmission.score >= 80
+                              className={`text-[10px] ${
+                                selectedMission.userSubmission.status ===
+                                  "PASS" ||
+                                selectedMission.userSubmission.status ===
+                                  "REVIEWED"
                                   ? "bg-green-50 text-green-700"
-                                  : "bg-amber-50 text-amber-700"
+                                  : selectedMission.userSubmission.status ===
+                                      "FAIL" ||
+                                    selectedMission.userSubmission.status ===
+                                      "RETURNED"
+                                  ? "bg-red-50 text-red-600"
+                                  : "bg-blue-50 text-blue-700"
                               }`}
                             >
-                              Score: {selectedMission.userSubmission.score}
+                              {capitalize(
+                                selectedMission.userSubmission.status
+                              )}
                             </Badge>
-                          )}
+                            {selectedMission.userSubmission.score !== null && (
+                              <Badge
+                                variant="secondary"
+                                className={`text-[10px] ${
+                                  selectedMission.userSubmission.score >= 80
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-amber-50 text-amber-700"
+                                }`}
+                              >
+                                Score: {selectedMission.userSubmission.score}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs">
+                        <div className="text-xs">
                           {selectedMission.userSubmission.contentUrl ? (
                             <a
-                              href={selectedMission.userSubmission.contentUrl}
+                              href={
+                                selectedMission.userSubmission.contentUrl
+                              }
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-primary hover:underline flex items-center gap-1"
@@ -294,14 +516,61 @@ export function LearnerMissions() {
                               <Link2 className="size-3" />
                               {selectedMission.userSubmission.contentUrl}
                             </a>
-                          ) : (
-                            selectedMission.userSubmission.contentText
+                          ) : selectedMission.userSubmission.contentText ? (
+                            <p className="whitespace-pre-wrap bg-background rounded p-2 border text-xs">
+                              {selectedMission.userSubmission.contentText}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        {/* Attached files */}
+                        {selectedMission.userSubmission.attachments &&
+                          selectedMission.userSubmission.attachments.length >
+                            0 && (
+                            <div className="space-y-1 pt-1">
+                              <p className="text-[11px] text-muted-foreground">
+                                Attached files
+                              </p>
+                              {selectedMission.userSubmission.attachments.map(
+                                (att) => (
+                                  <div
+                                    key={att.id}
+                                    className="flex items-center gap-2 border rounded px-2 py-1.5 bg-background"
+                                  >
+                                    <Paperclip className="size-3 text-muted-foreground shrink-0" />
+                                    <span className="text-xs truncate flex-1">
+                                      {att.filename}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground shrink-0">
+                                      {formatFileSize(att.size)}
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 shrink-0"
+                                      onClick={() =>
+                                        handleDownloadAttachment(
+                                          selectedMission.userSubmission!.id,
+                                          att.id
+                                        )
+                                      }
+                                    >
+                                      <Download className="size-3" />
+                                    </Button>
+                                  </div>
+                                )
+                              )}
+                            </div>
                           )}
-                        </p>
+
                         {selectedMission.userSubmission.feedback && (
-                          <div className="mt-1 pt-1 border-t">
-                            <p className="text-[11px] text-muted-foreground">Feedback</p>
-                            <p className="text-xs">{selectedMission.userSubmission.feedback}</p>
+                          <div className="mt-2 pt-2 border-t">
+                            <p className="text-[11px] text-muted-foreground mb-1">
+                              Instructor Feedback
+                            </p>
+                            <p className="text-xs whitespace-pre-wrap">
+                              {selectedMission.userSubmission.feedback}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -311,8 +580,7 @@ export function LearnerMissions() {
               </>
             );
           })()}
-        </SheetContent>
-      </Sheet>
+      </FloatingModal>
     </div>
   );
 }

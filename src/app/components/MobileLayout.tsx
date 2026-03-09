@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { useProgram } from "../context/ProgramContext";
+import { capitalize } from "../lib/format";
 import { GraduationCap } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
 
@@ -16,7 +17,7 @@ const tabs = [
   { to: "/m", icon: Home, label: "Home", end: true },
   { to: "/m/schedule", icon: Calendar, label: "Schedule" },
   { to: "/m/checkin", icon: ScanLine, label: "Check-in" },
-  { to: "/m/missions", icon: Target, label: "Tests" },
+  { to: "/m/tests", icon: Target, label: "Tests" },
   { to: "/m/profile", icon: User, label: "Profile" },
 ];
 
@@ -54,7 +55,7 @@ export function MobileLayout() {
                       variant="secondary"
                       className={`text-[9px] px-1 py-0 ${statusColor[p.status] || ""}`}
                     >
-                      {p.status}
+                      {capitalize(p.status)}
                     </Badge>
                   </div>
                 </SelectItem>

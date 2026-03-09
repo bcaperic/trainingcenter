@@ -13,6 +13,7 @@ import type {
   Submission,
 } from "../../types/api";
 import { format } from "date-fns";
+import { capitalize } from "../../lib/format";
 import {
   Folder,
   CalendarX,
@@ -190,7 +191,7 @@ export function LearnerProgress() {
                     variant="secondary"
                     className={`text-[10px] shrink-0 ${attendStatusStyle[r.status] || ""}`}
                   >
-                    {r.status.toLowerCase()}
+                    {capitalize(r.status)}
                   </Badge>
                 </div>
               ))}
@@ -228,7 +229,7 @@ export function LearnerProgress() {
                     variant="secondary"
                     className={`text-[10px] shrink-0 ${subStatusStyle[s.status] || ""}`}
                   >
-                    {s.status.toLowerCase()}
+                    {capitalize(s.status)}
                   </Badge>
                 </div>
               ))}

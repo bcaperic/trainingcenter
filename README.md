@@ -1,11 +1,47 @@
+# Training Hub
 
-  # 교육 시스템 구축
+Full-stack training management platform (NestJS + React + PostgreSQL + MinIO).
 
-  This is a code bundle for 교육 시스템 구축. The original project is available at https://www.figma.com/design/fc1KKoXLpEPWyFCUTHmDT4/%EA%B5%90%EC%9C%A1-%EC%8B%9C%EC%8A%A4%ED%85%9C-%EA%B5%AC%EC%B6%95.
+## Quick Start
 
-  ## Running the code
+```bash
+git clone https://github.com/Eric-yoon-ap/training-hub.git && cd training-hub
+./scripts/local-reset.sh        # Build, start, migrate & seed (first time)
+open http://localhost:8080       # Login with eric.yoon@bccard-ap.com / admin123
+```
 
-  Run `npm i` to install the dependencies.
+## Scripts
 
-  Run `npm run dev` to start the development server.
+| Command | Description |
+|---------|-------------|
+| `./scripts/local-up.sh` | Build & start (no seed) |
+| `./scripts/local-reset.sh` | Full reset with seed data |
+| `./scripts/local-down.sh` | Stop all containers |
+| `./scripts/local-logs.sh` | Tail service logs |
+| `./scripts/healthcheck.sh` | Check all services are healthy |
+| `./scripts/smoke-test.sh` | Run API functional tests |
+
+## Test Accounts (after seed)
+
+| Email | Password | Role |
+|-------|----------|------|
+| eric.yoon@bccard-ap.com | admin123 | Admin |
+| admin.park@company.com | password123 | Admin |
+| felix@company.com | password123 | Instructor |
+| nguyen.a@company.com | password123 | Trainee |
+
+## Local URLs
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:8080 |
+| API | http://localhost:3000/api |
+| MinIO Console | http://localhost:9001 (minioadmin/minioadmin) |
+
+## Tech Stack
+
+- **Frontend**: Vite + React + React Router 7 + Tailwind CSS + shadcn/ui
+- **Backend**: NestJS 10 + Prisma + PostgreSQL
+- **Auth**: JWT (access 15m + refresh 7d)
+- **Storage**: MinIO (S3-compatible)
   

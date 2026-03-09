@@ -20,17 +20,18 @@ import {
   TableRow,
 } from "../../components/ui/table";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "../../components/ui/sheet";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+  FloatingModalFooter,
+} from "../../components/FloatingModal";
 import { useProgram } from "../../context/ProgramContext";
 import { useApi, apiPost, apiPut } from "../../hooks/use-api";
 import type { ProgramMember, PaginatedResponse, Team } from "../../types/api";
 import { Plus, Search, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { capitalize } from "../../lib/format";
 
 interface UserForm {
   name: string;
@@ -44,7 +45,7 @@ const emptyForm: UserForm = {
   name: "",
   email: "",
   role: "TRAINEE",
-  teamId: "",
+  teamId: "__none__",
   active: true,
 };
 
@@ -52,7 +53,7 @@ export function AdminUsers() {
   const { currentProgram } = useProgram();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<UserForm>(emptyForm);
 
@@ -84,7 +85,7 @@ export function AdminUsers() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
   const openEdit = (m: ProgramMember) => {
@@ -93,10 +94,10 @@ export function AdminUsers() {
       name: m.user.name,
       email: m.user.email,
       role: m.role,
-      teamId: m.teamId || "",
+      teamId: m.teamId || "__none__",
       active: m.status === "ACTIVE",
     });
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
   const handleSave = async () => {
@@ -104,11 +105,12 @@ export function AdminUsers() {
       toast.error("Name and email are required");
       return;
     }
+    const teamId = form.teamId === "__none__" ? null : form.teamId;
     try {
       if (editingId) {
         await apiPut(`/programs/${currentProgram!.id}/users/${editingId}`, {
           role: form.role,
-          teamId: form.teamId || null,
+          teamId,
           status: form.active ? "ACTIVE" : "PAUSED",
         });
         toast.success("User updated");
@@ -117,11 +119,11 @@ export function AdminUsers() {
           email: form.email,
           name: form.name,
           role: form.role,
-          teamId: form.teamId || null,
+          teamId,
         });
         toast.success("User invited");
       }
-      setDrawerOpen(false);
+      setModalOpen(false);
       refetchUsers();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save user");
@@ -136,7 +138,7 @@ export function AdminUsers() {
     };
     return (
       <Badge variant="secondary" className={`text-[11px] ${styles[role] || ""}`}>
-        {role.toLowerCase()}
+        {capitalize(role)}
       </Badge>
     );
   };
@@ -194,7 +196,7 @@ export function AdminUsers() {
                 {m.user.email}
               </TableCell>
               <TableCell className="py-1.5">{roleBadge(m.role)}</TableCell>
-              <TableCell className="py-1.5 text-xs text-muted-foreground capitalize">
+              <TableCell className="py-1.5 text-xs text-muted-foreground">
                 {m.team?.name || "-"}
               </TableCell>
               <TableCell className="py-1.5">
@@ -206,7 +208,7 @@ export function AdminUsers() {
                       : "bg-red-50 text-red-600"
                   }`}
                 >
-                  {m.status.toLowerCase()}
+                  {capitalize(m.status)}
                 </Badge>
               </TableCell>
               <TableCell className="py-1.5">
@@ -224,94 +226,100 @@ export function AdminUsers() {
         </TableBody>
       </Table>
 
-      {/* Edit Drawer */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="text-sm">
-              {editingId ? "Edit User" : "Invite User"}
-            </SheetTitle>
-            <SheetDescription className="text-xs">
-              {editingId ? "Update user details and permissions." : "Invite a new user to the program."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 space-y-4 flex-1 overflow-auto">
+      {/* Edit / Invite Modal */}
+      <FloatingModal open={modalOpen} onOpenChange={setModalOpen}>
+        <FloatingModalHeader>
+          <FloatingModalTitle className="text-sm">
+            {editingId ? "Edit User" : "Invite User"}
+          </FloatingModalTitle>
+          <FloatingModalDescription className="text-xs">
+            {editingId ? "Update user details and permissions." : "Invite a new user to the program."}
+          </FloatingModalDescription>
+        </FloatingModalHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Full Name</Label>
+            <Input
+              className="h-8 text-sm"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Nguyen Van A"
+              disabled={!!editingId}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Email</Label>
+            <Input
+              className="h-8 text-sm"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="e.g. user@company.com"
+              disabled={!!editingId}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Full Name</Label>
-              <Input
-                className="h-8 text-sm"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Nguyen Van A"
-                disabled={!!editingId}
+              <Label className="text-xs">Role</Label>
+              <Select
+                value={form.role}
+                onValueChange={(v) =>
+                  setForm({ ...form, role: v as UserForm["role"] })
+                }
+              >
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                  <SelectItem value="TRAINEE">Trainee</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Team</Label>
+              <Select
+                value={form.teamId}
+                onValueChange={(v) => setForm({ ...form, teamId: v })}
+              >
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {teamsList.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {editingId && (
+            <div className="flex items-center justify-between pt-1">
+              <Label className="text-xs">Active</Label>
+              <Switch
+                checked={form.active}
+                onCheckedChange={(v) => setForm({ ...form, active: v })}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Email</Label>
-              <Input
-                className="h-8 text-sm"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="e.g. user@company.com"
-                disabled={!!editingId}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Role</Label>
-                <Select
-                  value={form.role}
-                  onValueChange={(v) =>
-                    setForm({ ...form, role: v as UserForm["role"] })
-                  }
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
-                    <SelectItem value="TRAINEE">Trainee</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Team</Label>
-                <Select
-                  value={form.teamId}
-                  onValueChange={(v) => setForm({ ...form, teamId: v })}
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {teamsList.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {editingId && (
-              <div className="flex items-center justify-between pt-1">
-                <Label className="text-xs">Active</Label>
-                <Switch
-                  checked={form.active}
-                  onCheckedChange={(v) => setForm({ ...form, active: v })}
-                />
-              </div>
-            )}
-          </div>
-          <div className="p-4 border-t mt-auto">
-            <Button className="w-full h-8 text-sm" onClick={handleSave}>
-              {editingId ? "Save Changes" : "Send Invite"}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+          )}
+        </div>
+        <FloatingModalFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setModalOpen(false)}
+            className="text-xs"
+          >
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSave} className="text-xs">
+            {editingId ? "Save Changes" : "Send Invite"}
+          </Button>
+        </FloatingModalFooter>
+      </FloatingModal>
     </div>
   );
 }

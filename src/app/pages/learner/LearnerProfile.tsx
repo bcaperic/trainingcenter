@@ -3,6 +3,7 @@ import { Badge } from "../../components/ui/badge";
 import { useAuth } from "../../context/AuthContext";
 import { useProgram } from "../../context/ProgramContext";
 import { User, Mail, UsersRound, GraduationCap, Shield } from "lucide-react";
+import { capitalize } from "../../lib/format";
 
 export function LearnerProfile() {
   const { user } = useAuth();
@@ -130,7 +131,7 @@ export function LearnerProfile() {
                           : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      {p.status.toLowerCase()}
+                      {capitalize(p.status)}
                     </Badge>
                   </div>
                 );

@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { capitalize } from "../../lib/format";
 
 type ProgramStatus = Program["status"];
 
@@ -261,14 +262,9 @@ export function AdminPrograms() {
       DRAFT: "bg-blue-50 text-blue-700",
       ARCHIVED: "bg-gray-100 text-gray-600",
     };
-    const labels: Record<string, string> = {
-      ACTIVE: "active",
-      DRAFT: "draft",
-      ARCHIVED: "archived",
-    };
     return (
       <Badge variant="secondary" className={`text-[11px] ${styles[status] || ""}`}>
-        {labels[status] || status}
+        {capitalize(status)}
       </Badge>
     );
   };

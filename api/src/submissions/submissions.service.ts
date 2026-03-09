@@ -101,6 +101,23 @@ export class SubmissionsService {
     return { stream, attachment };
   }
 
+  async findByMission(programId: string, missionId: string, query: PaginationQueryDto) {
+    const where = { programId, missionId };
+    const [data, total] = await Promise.all([
+      this.prisma.submission.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          attachments: true,
+        },
+        orderBy: { submittedAt: 'desc' },
+        ...paginate(query),
+      }),
+      this.prisma.submission.count({ where }),
+    ]);
+    return paginatedResponse(data, total, query);
+  }
+
   async findMySubmissions(programId: string, userId: string, query: PaginationQueryDto) {
     const where = { programId, userId };
     const [data, total] = await Promise.all([

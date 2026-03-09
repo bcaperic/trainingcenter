@@ -142,13 +142,14 @@ model User {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  memberships   ProgramMembership[]
-  enrollments   Enrollment[]
-  attendances   Attendance[]
-  submissions   Submission[]
-  notifications Notification[]
-  weeklyReports WeeklyReport[]
-  leadTeams     Team[]              @relation("TeamLead")
+  memberships        ProgramMembership[]
+  enrollments        Enrollment[]
+  attendances        Attendance[]
+  submissions        Submission[]
+  notifications      Notification[]
+  weeklyReports      WeeklyReport[]
+  leadTeams          Team[]              @relation("TeamLead")
+  instructedSessions Session[]           @relation("SessionInstructor")
 
   @@map("users")
 }
@@ -254,6 +255,7 @@ model Session {
   id              String        @id @default(uuid())
   programId       String
   weekId          String?
+  instructorId    String?
   type            SessionType   @default(LIVE)
   title           String
   description     String        @default("")
@@ -270,12 +272,29 @@ model Session {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  program     Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
-  week        Week?        @relation(fields: [weekId], references: [id], onDelete: SetNull)
+  program     Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
+  week        Week?                @relation(fields: [weekId], references: [id], onDelete: SetNull)
+  instructor  User?                @relation("SessionInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
   enrollments Enrollment[]
   attendances Attendance[]
+  attachments SessionAttachment[]
 
   @@map("sessions")
+}
+
+model SessionAttachment {
+  id         String   @id @default(uuid())
+  sessionId  String
+  filename   String
+  mimeType   String
+  size       Int
+  key        String
+  uploadedAt DateTime @default(now())
+  uploadedBy String
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_attachments")
 }
 
 model Enrollment {
@@ -324,11 +343,27 @@ model Mission {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  program     Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
-  week        Week         @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  program     Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
+  week        Week                 @relation(fields: [weekId], references: [id], onDelete: Cascade)
   submissions Submission[]
+  attachments MissionAttachment[]
 
   @@map("missions")
+}
+
+model MissionAttachment {
+  id         String   @id @default(uuid())
+  missionId  String
+  filename   String
+  mimeType   String
+  size       Int
+  key        String
+  uploadedAt DateTime @default(now())
+  uploadedBy String
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@map("mission_attachments")
 }
 
 model Submission {

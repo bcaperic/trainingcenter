@@ -15,6 +15,10 @@ export class CreateSessionDto {
   @IsOptional()
   weekId?: string;
 
+  @IsString()
+  @IsOptional()
+  instructorId?: string;
+
   @IsEnum(SessionType)
   type: SessionType;
 

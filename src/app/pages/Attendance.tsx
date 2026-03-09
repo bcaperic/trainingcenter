@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Badge } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
 import {
@@ -9,12 +9,12 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "../components/ui/dialog";
+  FloatingModal,
+  FloatingModalHeader,
+  FloatingModalTitle,
+  FloatingModalDescription,
+} from "../components/FloatingModal";
+import { Button } from "../components/ui/button";
 import {
   Table,
   TableBody,
@@ -29,11 +29,13 @@ import { useApi } from "../hooks/use-api";
 import type {
   Week,
   Session,
+  Mission,
   PaginatedResponse,
   AdminDashboardData,
   OpsSummaryResponse,
 } from "../types/api";
 import { Folder, CalendarX, ClipboardCheck, Clock } from "lucide-react";
+import { capitalize } from "../lib/format";
 import { format } from "date-fns";
 
 function formatTimeRange(startAt: string, endAt: string): string {
@@ -74,6 +76,7 @@ export function Attendance() {
   const { currentProgram } = useProgram();
   const [selectedWeek, setSelectedWeek] = useState("all");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [drilldownFilter, setDrilldownFilter] = useState<"all" | "not_checked_in" | "late" | "absent" | "not_submitted">("all");
 
   const { data: weeks } = useApi<Week[]>(
     currentProgram ? `/programs/${currentProgram.id}/weeks` : null,
@@ -92,6 +95,11 @@ export function Attendance() {
     [currentProgram?.id]
   );
 
+  const { data: missions } = useApi<Mission[]>(
+    currentProgram ? `/programs/${currentProgram.id}/missions` : null,
+    [currentProgram?.id]
+  );
+
   const { data: detail, loading: detailLoading } = useApi<OpsSummaryResponse>(
     currentProgram && selectedSessionId
       ? `/programs/${currentProgram.id}/sessions/${selectedSessionId}/ops-summary`
@@ -101,6 +109,60 @@ export function Attendance() {
 
   const weeksList = weeks ?? [];
   const sessionsList = sessionsData?.data ?? [];
+  const missionsList = missions ?? [];
+
+  // Lookup maps
+  const weekMap = useMemo(() => {
+    const map: Record<string, Week> = {};
+    for (const w of weeksList) map[w.id] = w;
+    return map;
+  }, [weeksList]);
+
+  const missionCountByWeek = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const m of missionsList) {
+      map[m.weekId] = (map[m.weekId] || 0) + 1;
+    }
+    return map;
+  }, [missionsList]);
+
+  // Filter + sort trainees in drilldown
+  const filteredTrainees = useMemo(() => {
+    if (!detail) return [];
+    let list = [...detail.trainees];
+
+    // Apply filter
+    switch (drilldownFilter) {
+      case "not_checked_in":
+        list = list.filter((t) => !t.attendanceStatus);
+        break;
+      case "late":
+        list = list.filter((t) => t.attendanceStatus === "LATE");
+        break;
+      case "absent":
+        list = list.filter((t) => t.attendanceStatus === "ABSENT" || !t.attendanceStatus);
+        break;
+      case "not_submitted":
+        list = list.filter((t) => !t.testSubmissionStatus);
+        break;
+    }
+
+    // Sort: not checked in first, then late, then absent, then present
+    const statusOrder: Record<string, number> = {
+      "": 0, // not checked in
+      ABSENT: 1,
+      LATE: 2,
+      EXCUSED: 3,
+      PRESENT: 4,
+    };
+    list.sort((a, b) => {
+      const aOrder = statusOrder[a.attendanceStatus || ""] ?? 0;
+      const bOrder = statusOrder[b.attendanceStatus || ""] ?? 0;
+      return aOrder - bOrder;
+    });
+
+    return list;
+  }, [detail, drilldownFilter]);
 
   if (!currentProgram) {
     return (
@@ -160,7 +222,7 @@ export function Attendance() {
         </div>
         <div className="border rounded-md p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">Completion Rate</p>
+            <p className="text-xs text-muted-foreground">Test Pass Rate</p>
             <p className="text-sm" style={{ fontWeight: 600 }}>
               {completionRate}%
             </p>
@@ -180,21 +242,28 @@ export function Attendance() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="h-8 text-xs w-20">Week</TableHead>
               <TableHead className="h-8 text-xs">Session</TableHead>
               <TableHead className="h-8 text-xs">Date / Time</TableHead>
-              <TableHead className="h-8 text-xs w-28">Session Status</TableHead>
-              <TableHead className="h-8 text-xs w-28">Enrolled</TableHead>
+              <TableHead className="h-8 text-xs w-24">Status</TableHead>
+              <TableHead className="h-8 text-xs w-20">Tests</TableHead>
+              <TableHead className="h-8 text-xs w-24">Enrolled</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sessionsList.map((session) => {
               const sStatus = deriveSessionStatus(session);
+              const week = session.weekId ? weekMap[session.weekId] : null;
+              const testCount = session.weekId ? (missionCountByWeek[session.weekId] || 0) : 0;
               return (
                 <TableRow
                   key={session.id}
                   className="h-9 cursor-pointer hover:bg-muted/30 transition-colors"
                   onClick={() => setSelectedSessionId(session.id)}
                 >
+                  <TableCell className="py-1.5 text-xs text-muted-foreground">
+                    {week ? `W${week.weekNo}` : "\u2014"}
+                  </TableCell>
                   <TableCell className="py-1.5 text-xs" style={{ fontWeight: 500 }}>
                     {session.title}
                   </TableCell>
@@ -210,8 +279,11 @@ export function Attendance() {
                       variant="secondary"
                       className={`text-[10px] ${sessionStatusStyles[sStatus] || ""}`}
                     >
-                      {sStatus}
+                      {capitalize(sStatus)}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="py-1.5 text-xs text-muted-foreground">
+                    {testCount > 0 ? testCount : "\u2014"}
                   </TableCell>
                   <TableCell className="py-1.5 text-xs text-muted-foreground">
                     {session.enrolledCount ?? 0}
@@ -225,23 +297,27 @@ export function Attendance() {
       )}
 
       {/* Session Attendance Detail Modal */}
-      <Dialog
+      <FloatingModal
         open={!!selectedSessionId}
-        onOpenChange={(open) => !open && setSelectedSessionId(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedSessionId(null);
+            setDrilldownFilter("all");
+          }
+        }}
       >
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
           {detailLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>
           ) : detail ? (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-sm">{detail.session.title}</DialogTitle>
-                <DialogDescription className="text-xs">
+              <FloatingModalHeader>
+                <FloatingModalTitle className="text-sm">{detail.session.title}</FloatingModalTitle>
+                <FloatingModalDescription className="text-xs">
                   {format(new Date(detail.session.startAt), "yyyy-MM-dd")}
                   {" "}
                   {formatTimeRange(detail.session.startAt, detail.session.endAt)}
-                </DialogDescription>
-              </DialogHeader>
+                </FloatingModalDescription>
+              </FloatingModalHeader>
               <div className="space-y-4">
                 {/* Summary cards */}
                 <div className="grid grid-cols-5 gap-2">
@@ -277,10 +353,31 @@ export function Attendance() {
                   </div>
                 </div>
 
+                {/* Quick filter buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {([
+                    { key: "all", label: "All" },
+                    { key: "not_checked_in", label: "Not Checked In" },
+                    { key: "late", label: "Late" },
+                    { key: "absent", label: "Absent" },
+                    { key: "not_submitted", label: "Not Submitted" },
+                  ] as const).map((f) => (
+                    <Button
+                      key={f.key}
+                      variant={drilldownFilter === f.key ? "default" : "outline"}
+                      size="sm"
+                      className="h-6 text-[11px] px-2"
+                      onClick={() => setDrilldownFilter(f.key)}
+                    >
+                      {f.label}
+                    </Button>
+                  ))}
+                </div>
+
                 {/* Per-trainee table */}
-                {detail.trainees.length === 0 ? (
+                {filteredTrainees.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">
-                    No trainees enrolled
+                    {drilldownFilter === "all" ? "No trainees enrolled" : "No trainees match this filter"}
                   </p>
                 ) : (
                   <Table>
@@ -295,7 +392,7 @@ export function Attendance() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detail.trainees.map((t) => (
+                      {filteredTrainees.map((t) => (
                         <TableRow key={t.userId} className="h-8">
                           <TableCell className="py-1">
                             <p className="text-xs" style={{ fontWeight: 500 }}>
@@ -312,11 +409,11 @@ export function Attendance() {
                                 variant="secondary"
                                 className={`text-[10px] ${attendanceStatusStyles[t.attendanceStatus] || ""}`}
                               >
-                                {t.attendanceStatus.toLowerCase()}
+                                {capitalize(t.attendanceStatus)}
                               </Badge>
                             ) : (
                               <Badge variant="secondary" className="text-[10px] bg-red-50 text-red-600">
-                                absent
+                                Absent
                               </Badge>
                             )}
                           </TableCell>
@@ -337,7 +434,7 @@ export function Attendance() {
                                         : "bg-gray-100 text-gray-600"
                                 }`}
                               >
-                                {t.testSubmissionStatus.toLowerCase()}
+                                {capitalize(t.testSubmissionStatus)}
                               </Badge>
                             ) : (
                               <span className="text-[11px] text-muted-foreground">{"\u2014"}</span>
@@ -356,8 +453,7 @@ export function Attendance() {
               </div>
             </>
           ) : null}
-        </DialogContent>
-      </Dialog>
+      </FloatingModal>
     </div>
   );
 }

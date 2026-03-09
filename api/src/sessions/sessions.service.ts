@@ -1,13 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { UploadService } from '../upload/upload.service';
 import { CreateSessionDto, UpdateSessionDto } from './dto/create-session.dto';
 import { PaginationQueryDto, paginate, paginatedResponse } from '../common/dto/pagination-query.dto';
 import { getPolicyConfig } from '../common/config/policy.config';
+import { randomBytes } from 'crypto';
+import { extname } from 'path';
 
 @Injectable()
 export class SessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   async findAll(
     programId: string,
@@ -29,9 +35,11 @@ export class SessionsService {
       this.prisma.session.findMany({
         where,
         include: {
+          instructor: { select: { id: true, name: true, email: true } },
           _count: {
             select: {
               enrollments: { where: { status: { not: 'CANCELED' } } },
+              attachments: true,
             },
           },
         },
@@ -43,8 +51,11 @@ export class SessionsService {
 
     const data = sessions.map((s) => ({
       ...s,
+      instructorName: s.instructor?.name || null,
       enrolledCount: s._count.enrollments,
+      attachmentCount: s._count.attachments,
       _count: undefined,
+      instructor: undefined,
     }));
 
     return paginatedResponse(data, total, query);
@@ -54,8 +65,10 @@ export class SessionsService {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: {
+        instructor: { select: { id: true, name: true, email: true } },
         enrollments: true,
         attendances: true,
+        attachments: true,
       },
     });
 
@@ -63,7 +76,10 @@ export class SessionsService {
       throw new NotFoundException('Session not found');
     }
 
-    return session;
+    return {
+      ...session,
+      instructorName: session.instructor?.name || null,
+    };
   }
 
   async create(programId: string, dto: CreateSessionDto) {
@@ -76,6 +92,7 @@ export class SessionsService {
       data: {
         programId,
         weekId: dto.weekId,
+        instructorId: dto.instructorId || null,
         type: dto.type,
         title: dto.title,
         description: dto.description ?? '',
@@ -111,6 +128,10 @@ export class SessionsService {
 
     if (dto.endAt) {
       data.endAt = new Date(dto.endAt);
+    }
+
+    if ('instructorId' in dto) {
+      data.instructorId = dto.instructorId || null;
     }
 
     return this.prisma.session.update({
@@ -167,5 +188,56 @@ export class SessionsService {
     });
 
     return { code };
+  }
+
+  // ── Session Attachments ──
+
+  async listSessionAttachments(sessionId: string) {
+    return this.prisma.sessionAttachment.findMany({
+      where: { sessionId },
+      orderBy: { uploadedAt: 'desc' },
+    });
+  }
+
+  async uploadSessionAttachment(sessionId: string, file: Express.Multer.File, userId: string) {
+    if (!file) throw new BadRequestException('No file provided');
+
+    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const ext = extname(file.originalname) || '';
+    const key = `sessions/${sessionId}/${randomBytes(16).toString('hex')}${ext}`;
+    await this.uploadService.upload(key, file.buffer, file.mimetype);
+
+    return this.prisma.sessionAttachment.create({
+      data: {
+        sessionId,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        key,
+        uploadedBy: userId,
+      },
+    });
+  }
+
+  async downloadSessionAttachment(sessionId: string, attachmentId: string) {
+    const attachment = await this.prisma.sessionAttachment.findFirst({
+      where: { id: attachmentId, sessionId },
+    });
+    if (!attachment) throw new NotFoundException('Attachment not found');
+
+    const stream = await this.uploadService.getStream(attachment.key);
+    return { stream, attachment };
+  }
+
+  async deleteSessionAttachment(sessionId: string, attachmentId: string) {
+    const attachment = await this.prisma.sessionAttachment.findFirst({
+      where: { id: attachmentId, sessionId },
+    });
+    if (!attachment) throw new NotFoundException('Attachment not found');
+
+    await this.prisma.sessionAttachment.delete({ where: { id: attachmentId } });
+    return { success: true };
   }
 }

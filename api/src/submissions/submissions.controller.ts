@@ -65,6 +65,17 @@ export class SubmissionsController {
     stream.pipe(res);
   }
 
+  @Get('missions/:missionId/submissions')
+  @Roles('ADMIN', 'INSTRUCTOR')
+  @UseGuards(RolesGuard)
+  findByMission(
+    @Param('programId') programId: string,
+    @Param('missionId') missionId: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.submissionsService.findByMission(programId, missionId, query);
+  }
+
   @Get('me/submissions')
   findMySubmissions(
     @Param('programId') programId: string,

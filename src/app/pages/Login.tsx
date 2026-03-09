@@ -99,6 +99,35 @@ export function Login() {
             </Link>
           </div>
         </form>
+
+        {/* Test accounts */}
+        <div className="border-t pt-3 space-y-1.5">
+          <p className="text-[10px] text-muted-foreground text-center uppercase tracking-wider" style={{ fontWeight: 600 }}>
+            Test Accounts
+          </p>
+          <div className="space-y-1">
+            {[
+              { role: "Admin", email: "eric.yoon@bccard-ap.com", pw: "admin123" },
+              { role: "Admin", email: "admin.park@company.com", pw: "password123" },
+              { role: "Instructor", email: "felix@company.com", pw: "password123" },
+              { role: "Trainee", email: "nguyen.a@company.com", pw: "password123" },
+            ].map((acc) => (
+              <button
+                key={acc.email}
+                type="button"
+                className="w-full text-left px-2.5 py-1.5 rounded-md border border-dashed hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => { setEmail(acc.email); setPassword(acc.pw); }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground" style={{ fontWeight: 600 }}>
+                    {acc.role}
+                  </span>
+                  <span className="text-xs text-foreground truncate">{acc.email}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
