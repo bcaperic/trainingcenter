@@ -257,24 +257,38 @@ async function main() {
 
   // ──────────────── Submissions ────────────────
   await Promise.all([
-    prisma.submission.create({
-      data: {
-        programId: devFdn.id, missionId: m1.id, userId: nguyenA.id,
-        contentUrl: 'https://docs.google.com/drawings/d/example1',
-        status: 'REVIEWED', score: 85,
-        submittedAt: new Date('2026-03-05'),
-      },
-    }),
-    prisma.submission.create({
-      data: {
-        programId: devFdn.id, missionId: m5.id, userId: nguyenA.id,
-        contentText: 'MDR 계산 로직 분석 완료. 우선순위: BIN > MCC > Default. 개선점: 캐시 적용 권장.',
-        status: 'REVIEWED', score: 92,
-        submittedAt: new Date('2026-03-18'),
-      },
-    }),
+    // DEV FDN — m1: BAIS Architecture Diagram (Week 1)
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m1.id, userId: nguyenA.id, contentUrl: 'https://docs.google.com/drawings/d/example1', status: 'REVIEWED', score: 85, feedback: 'Good diagram, but missing the error-handling flow between Adapter and Service layers.', reviewedAt: new Date('2026-03-06'), submittedAt: new Date('2026-03-05') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m1.id, userId: tranB.id, contentText: 'BAIS 아키텍처 분석 보고서입니다. Handler→Adapter→Service 계층 구조와 데이터 흐름을 정리했습니다.', status: 'PASS', score: 90, feedback: 'Excellent analysis with clear flow diagrams.', reviewedAt: new Date('2026-03-06'), submittedAt: new Date('2026-03-05') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m1.id, userId: leC.id, contentUrl: 'https://docs.google.com/document/d/example-lec', status: 'SUBMITTED', submittedAt: new Date('2026-03-06') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m1.id, userId: phamD.id, contentText: 'BAIS 프레임워크 계층 분석. Handler가 요청을 수신하고 Adapter를 통해 Service로 전달.', status: 'RETURNED', feedback: 'Too brief. Please add sequence diagrams and cover edge cases.', reviewedAt: new Date('2026-03-07'), submittedAt: new Date('2026-03-06') } }),
+
+    // DEV FDN — m2: ISO8583 Field Mapping Table (Week 1)
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m2.id, userId: nguyenA.id, contentUrl: 'https://docs.google.com/spreadsheets/d/example-mapping', status: 'PASS', score: 88, feedback: 'Complete mapping table. Good coverage of Visa and Mastercard fields.', reviewedAt: new Date('2026-03-08'), submittedAt: new Date('2026-03-06') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m2.id, userId: tranB.id, contentText: 'ISO8583 Visa/Master 브랜드 전문 매핑 테이블을 작성했습니다.', status: 'SUBMITTED', submittedAt: new Date('2026-03-07') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m2.id, userId: doF.id, contentUrl: 'https://docs.google.com/spreadsheets/d/example-dof', status: 'SUBMITTED', submittedAt: new Date('2026-03-07') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m2.id, userId: voG.id, contentText: 'Visa DE fields 분석 완료. Master는 추가 분석 필요.', status: 'FAIL', score: 35, feedback: 'Incomplete. Only Visa fields covered. Please add Mastercard mapping.', reviewedAt: new Date('2026-03-08'), submittedAt: new Date('2026-03-07') } }),
+
+    // DEV FDN — m3: PIN Block Encryption Flow (Week 2)
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m3.id, userId: nguyenA.id, contentUrl: 'https://lucid.app/lucidchart/example-pinblock', status: 'PASS', score: 95, feedback: 'Outstanding work. Clear sequence diagram with proper HSM interaction flows.', reviewedAt: new Date('2026-03-11'), submittedAt: new Date('2026-03-09') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m3.id, userId: leC.id, contentText: 'PIN Block 암호화 흐름: Terminal→HSM(encrypt)→Network→HSM(decrypt)→Authorization', status: 'SUBMITTED', submittedAt: new Date('2026-03-10') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m3.id, userId: phamD.id, contentUrl: 'https://docs.google.com/drawings/d/example-phamd-pin', status: 'SUBMITTED', submittedAt: new Date('2026-03-10') } }),
+
+    // DEV FDN — m4: Authorization Reversal Test Case (Week 2)
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m4.id, userId: nguyenA.id, contentText: 'Reversal 시나리오 5가지:\n1. 타임아웃 후 자동 망취소\n2. 부분 승인 후 전체 취소\n3. 이중 승인 감지 시 취소\n4. 네트워크 오류 시 취소\n5. CVV 불일치 후 취소', status: 'REVIEWED', score: 78, feedback: 'Good scenarios but test cases need more specific input/output assertions.', reviewedAt: new Date('2026-03-15'), submittedAt: new Date('2026-03-13') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m4.id, userId: tranB.id, contentText: 'Reversal test cases 작성 완료', status: 'SUBMITTED', submittedAt: new Date('2026-03-14') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m4.id, userId: doF.id, contentUrl: 'https://docs.google.com/document/d/example-dof-reversal', status: 'SUBMITTED', submittedAt: new Date('2026-03-14') } }),
+
+    // DEV FDN — m5: MDR Calculation Logic Review (Week 3)
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m5.id, userId: nguyenA.id, contentText: 'MDR 계산 로직 분석 완료. 우선순위: BIN > MCC > Default. 개선점: 캐시 적용 권장.', status: 'REVIEWED', score: 92, feedback: 'Thorough analysis with practical optimization suggestions.', reviewedAt: new Date('2026-03-19'), submittedAt: new Date('2026-03-18') } }),
+    prisma.submission.create({ data: { programId: devFdn.id, missionId: m5.id, userId: leC.id, contentText: 'MDR 로직 리뷰 결과: 우선순위 계산에 O(n) 시간 복잡도. 해시맵 적용 시 O(1)로 개선 가능.', status: 'SUBMITTED', submittedAt: new Date('2026-03-20') } }),
+
+    // ADV OPS — m8: Monitoring Dashboard Setup (Week 1)
+    prisma.submission.create({ data: { programId: advOps.id, missionId: m8.id, userId: nguyenA.id, contentUrl: 'https://grafana.example.com/dashboard/nguyen', status: 'PASS', score: 88, feedback: 'Well-structured dashboard with good metric selection. Consider adding alert thresholds.', reviewedAt: new Date('2026-03-13'), submittedAt: new Date('2026-03-12') } }),
+    prisma.submission.create({ data: { programId: advOps.id, missionId: m8.id, userId: tranB.id, contentUrl: 'https://grafana.example.com/dashboard/tran', status: 'SUBMITTED', submittedAt: new Date('2026-03-13') } }),
+    prisma.submission.create({ data: { programId: advOps.id, missionId: m8.id, userId: phamD.id, contentText: 'Grafana 대시보드 구성 완료. CPU, Memory, Disk I/O, Network, Error Rate 5개 메트릭 설정.', status: 'FAIL', score: 40, feedback: 'Dashboard exists but metrics are not connected to real data sources. Please configure proper data sources.', reviewedAt: new Date('2026-03-14'), submittedAt: new Date('2026-03-13') } }),
   ]);
-  console.log('Created 2 submissions');
+  console.log('Created 21 submissions');
 
   // ──────────────── Enrollments ────────────────
   await Promise.all([
@@ -374,7 +388,7 @@ async function main() {
       data: {
         programId: devFdn.id, userId: nguyenA.id, type: 'RECORDING_READY',
         title: 'Recording available', body: 'Merchant Lifecycle Management recording has been uploaded.',
-        isRead: true, linkPath: '/learn/recordings', createdAt: new Date('2026-03-02T16:00:00'),
+        isRead: true, linkPath: '/learn/videos', createdAt: new Date('2026-03-02T16:00:00'),
       },
     }),
     prisma.notification.create({

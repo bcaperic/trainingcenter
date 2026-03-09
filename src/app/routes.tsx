@@ -28,8 +28,6 @@ import { AdminSubmissions } from "./pages/admin/AdminSubmissions";
 import { LearnerHome } from "./pages/learner/LearnerHome";
 import { LearnerSchedule } from "./pages/learner/LearnerSchedule";
 import { LearnerMissions } from "./pages/learner/LearnerMissions";
-import { LearnerProgress } from "./pages/learner/LearnerProgress";
-import { LearnerProfile } from "./pages/learner/LearnerProfile";
 import { LearnerRecordings } from "./pages/learner/LearnerRecordings";
 
 // Mobile pages
@@ -84,9 +82,7 @@ export const router = createBrowserRouter([
           { index: true, Component: LearnerHome },
           { path: "schedule", Component: LearnerSchedule },
           { path: "tests", Component: LearnerMissions },
-          { path: "progress", Component: LearnerProgress },
-          { path: "profile", Component: LearnerProfile },
-          { path: "recordings", Component: LearnerRecordings },
+          { path: "videos", Component: LearnerRecordings },
         ],
       },
     ],

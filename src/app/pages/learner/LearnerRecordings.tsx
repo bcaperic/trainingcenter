@@ -43,7 +43,7 @@ export function LearnerRecordings() {
       <EmptyState
         icon={Video}
         title="No recordings yet"
-        description={`"${currentProgram.name}" has no session recordings available.`}
+        description={`"${currentProgram.name}" has no videos available yet.`}
       />
     );
   }
@@ -52,10 +52,10 @@ export function LearnerRecordings() {
     <div className="space-y-4 max-w-3xl">
       <div>
         <h3 className="text-sm" style={{ fontWeight: 600 }}>
-          Recordings
+          Videos
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Review past session recordings grouped by week.
+          Session recordings grouped by week.
         </p>
       </div>
 

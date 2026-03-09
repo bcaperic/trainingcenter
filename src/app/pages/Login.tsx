@@ -108,9 +108,9 @@ export function Login() {
           <div className="space-y-1">
             {[
               { role: "Admin", email: "eric.yoon@bccard-ap.com", pw: "admin123" },
-              { role: "Admin", email: "admin.park@company.com", pw: "password123" },
-              { role: "Instructor", email: "felix@company.com", pw: "password123" },
-              { role: "Trainee", email: "nguyen.a@company.com", pw: "password123" },
+              { role: "Admin", email: "admin.park@company.com", pw: "admin123" },
+              { role: "Instructor", email: "felix@company.com", pw: "admin123" },
+              { role: "Trainee", email: "nguyen.a@company.com", pw: "admin123" },
             ].map((acc) => (
               <button
                 key={acc.email}

@@ -41,7 +41,6 @@ interface SessionForm {
   startAt: string;
   endAt: string;
   type: Session["type"];
-  capacity: number;
   locationOrUrl: string;
   recordingUrl: string;
 }
@@ -53,7 +52,6 @@ const emptyForm: SessionForm = {
   startAt: "",
   endAt: "",
   type: "LIVE",
-  capacity: 10,
   locationOrUrl: "",
   recordingUrl: "",
 };
@@ -200,7 +198,6 @@ export function AdminSessions() {
       startAt: s.startAt ? format(new Date(s.startAt), "yyyy-MM-dd'T'HH:mm") : "",
       endAt: s.endAt ? format(new Date(s.endAt), "yyyy-MM-dd'T'HH:mm") : "",
       type: s.type,
-      capacity: s.capacity || 10,
       locationOrUrl: s.locationOrUrl || "",
       recordingUrl: s.recordingUrl || "",
     });
@@ -299,7 +296,6 @@ export function AdminSessions() {
             <TableHead className="h-8 text-xs">Type</TableHead>
             <TableHead className="h-8 text-xs">Title</TableHead>
             <TableHead className="h-8 text-xs">Instructor</TableHead>
-            <TableHead className="h-8 text-xs">Capacity</TableHead>
             <TableHead className="h-8 text-xs">Status</TableHead>
             <TableHead className="h-8 text-xs w-24">Actions</TableHead>
           </TableRow>
@@ -319,9 +315,6 @@ export function AdminSessions() {
               </TableCell>
               <TableCell className="py-1.5 text-xs text-muted-foreground">
                 {s.instructorName || "\u2014"}
-              </TableCell>
-              <TableCell className="py-1.5 text-xs text-muted-foreground">
-                {s.capacity ? `${s.enrolledCount ?? 0}/${s.capacity}` : "\u2014"}
               </TableCell>
               <TableCell className="py-1.5">{statusBadge(s.status)}</TableCell>
               <TableCell className="py-1.5">
@@ -458,17 +451,6 @@ export function AdminSessions() {
                   <SelectItem value="WAR_ROOM">War Room</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Capacity</Label>
-              <Input
-                className="h-8 text-sm"
-                type="number"
-                value={form.capacity}
-                onChange={(e) =>
-                  setForm({ ...form, capacity: parseInt(e.target.value) || 0 })
-                }
-              />
             </div>
           </div>
           <div className="space-y-1.5">

@@ -3,8 +3,6 @@ import {
   Home,
   Calendar,
   Target,
-  TrendingUp,
-  User,
   LogOut,
   GraduationCap,
   Folder,
@@ -28,9 +26,7 @@ const navItems = [
   { to: "/learn", icon: Home, label: "Home", end: true },
   { to: "/learn/schedule", icon: Calendar, label: "Schedule" },
   { to: "/learn/tests", icon: Target, label: "Tests" },
-  { to: "/learn/recordings", icon: Video, label: "Recordings" },
-  { to: "/learn/progress", icon: TrendingUp, label: "Progress" },
-  { to: "/learn/profile", icon: User, label: "Profile" },
+  { to: "/learn/videos", icon: Video, label: "Videos" },
 ];
 
 export function LearnerLayout() {

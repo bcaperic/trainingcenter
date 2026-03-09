@@ -96,21 +96,20 @@ export function AdminSubmissions() {
     [currentProgram?.id, selectedWeekId]
   );
 
+  const weeksList = weeks || [];
+  const missionsList = missions || [];
+  const activeMissionId = selectedMissionId || missionsList[0]?.id || "";
+
   // Fetch submissions for selected mission
   const { data: submissionsData, loading: submissionsLoading, refetch: refetchSubmissions } =
     useApi<PaginatedResponse<SubmissionWithUser>>(
-      currentProgram && selectedMissionId
-        ? `/programs/${currentProgram.id}/missions/${selectedMissionId}/submissions?pageSize=200`
+      currentProgram && activeMissionId
+        ? `/programs/${currentProgram.id}/missions/${activeMissionId}/submissions?pageSize=200`
         : null,
-      [currentProgram?.id, selectedMissionId]
+      [currentProgram?.id, activeMissionId]
     );
 
-  const weeksList = weeks || [];
-  const missionsList = missions || [];
   const submissions = submissionsData?.data || [];
-
-  // Auto-select first mission when missions load
-  const activeMissionId = selectedMissionId || missionsList[0]?.id || "";
 
   // Filter submissions by search
   const filtered = useMemo(() => {

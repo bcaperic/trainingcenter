@@ -548,7 +548,7 @@ export const notifications: Notification[] = [
     body: "Merchant Lifecycle Management recording has been uploaded.",
     read: true,
     createdAt: "2026-03-02T16:00:00",
-    linkTo: "/learn/recordings",
+    linkTo: "/learn/videos",
     relatedId: "s5",
   },
   {

@@ -395,14 +395,6 @@ export function AdminDashboard() {
                     </p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Capacity</span>
-                    <p style={{ fontWeight: 500 }}>
-                      {selectedSession.capacity
-                        ? `${selectedSession.enrolledCount ?? 0}/${selectedSession.capacity}`
-                        : "\u2014"}
-                    </p>
-                  </div>
-                  <div>
                     <span className="text-muted-foreground">Location</span>
                     <p style={{ fontWeight: 500 }}>
                       {selectedSession.locationOrUrl || "\u2014"}

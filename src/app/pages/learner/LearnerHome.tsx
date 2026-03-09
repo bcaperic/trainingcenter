@@ -11,7 +11,6 @@ import type {
   LearnerDashboardData,
   PaginatedResponse,
   Announcement,
-  Notification,
 } from "../../types/api";
 import { format, differenceInCalendarDays } from "date-fns";
 import {
@@ -19,7 +18,6 @@ import {
   AlertTriangle,
   Folder,
   CalendarX,
-  Star,
   Target,
   Calendar,
   ChevronRight,
@@ -39,9 +37,6 @@ export function LearnerHome() {
 
   const { data: annData, loading: loadingAnn } =
     useApi<PaginatedResponse<Announcement>>(pid ? `/programs/${pid}/announcements` : null, [pid]);
-
-  const { data: notifData } =
-    useApi<PaginatedResponse<Notification>>(pid ? `/programs/${pid}/me/notifications` : null, [pid]);
 
   if (!currentProgram) {
     return (
@@ -104,8 +99,11 @@ export function LearnerHome() {
       </div>
 
       {/* Personal Stats Row */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="gap-0 p-3">
+      <div className="grid grid-cols-2 gap-3">
+        <Card
+          className="gap-0 p-3 cursor-pointer hover:border-blue-300 transition-colors"
+          onClick={() => navigate("/learn/schedule")}
+        >
           <CardContent className="p-0 space-y-1.5">
             <div className="flex items-center justify-between">
               <p className="text-[11px] text-muted-foreground">Attendance</p>
@@ -117,41 +115,19 @@ export function LearnerHome() {
             <Progress value={dashboard.attendanceRate} className="h-1" />
           </CardContent>
         </Card>
-        <Card className="gap-0 p-3">
+        <Card
+          className="gap-0 p-3 cursor-pointer hover:border-green-300 transition-colors"
+          onClick={() => navigate("/learn/tests")}
+        >
           <CardContent className="p-0 space-y-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground">Tests</p>
+              <p className="text-[11px] text-muted-foreground">Test Pass Rate</p>
               <Target className="size-3.5 text-green-500" />
             </div>
             <p className="text-lg" style={{ fontWeight: 600 }}>
               {dashboard.completionRate}%
             </p>
             <Progress value={dashboard.completionRate} className="h-1" />
-          </CardContent>
-        </Card>
-        <Card className="gap-0 p-3">
-          <CardContent className="p-0 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground">Points</p>
-              <Star className="size-3.5 text-amber-500" />
-            </div>
-            <p className="text-lg" style={{ fontWeight: 600 }}>
-              {dashboard.points ?? 0}
-            </p>
-            <div className="flex items-center gap-1">
-              <Badge
-                variant="secondary"
-                className={`text-[10px] ${
-                  dashboard.gateStatus === "passed"
-                    ? "bg-green-50 text-green-700"
-                    : dashboard.gateStatus === "failed"
-                    ? "bg-red-50 text-red-600"
-                    : "bg-amber-50 text-amber-700"
-                }`}
-              >
-                Gate: {dashboard.gateStatus ?? "—"}
-              </Badge>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -246,7 +222,7 @@ export function LearnerHome() {
                         {s.title}
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {format(new Date(s.startAt), "HH:mm")}–{format(new Date(s.endAt), "HH:mm")} · {s.capacity ?? "—"}
+                        {format(new Date(s.startAt), "HH:mm")}–{format(new Date(s.endAt), "HH:mm")}
                       </p>
                     </div>
                     <Badge

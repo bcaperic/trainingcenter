@@ -26,9 +26,9 @@ open http://localhost:8080       # Login with eric.yoon@bccard-ap.com / admin123
 | Email | Password | Role |
 |-------|----------|------|
 | eric.yoon@bccard-ap.com | admin123 | Admin |
-| admin.park@company.com | password123 | Admin |
-| felix@company.com | password123 | Instructor |
-| nguyen.a@company.com | password123 | Trainee |
+| admin.park@company.com | admin123 | Admin |
+| felix@company.com | admin123 | Instructor |
+| nguyen.a@company.com | admin123 | Trainee |
 
 ## Local URLs
 
